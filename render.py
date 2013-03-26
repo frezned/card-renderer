@@ -21,16 +21,18 @@ def style(source, font, size):
 	ss.alignment = TA_CENTER
 	return ss
 
+# TODO: load these from a settings file
 COPYSTYLE = style('Normal', 'Candara', 8.5)
 HEADERSTYLE = style('Heading1', 'Whitney-Bold', 14)
+DPI = 300
 
 A4 = (21*cm, 29.7*cm)
 LETTER = (11*inch, 8.5*inch)
+CARD = (2.5*inch, 3.5*inch)
 
-CARDW = 2.5*inch
-CARDH = 3.5*inch
+CARDW = CARD[0]
+CARDH = CARD[1]
 
-DPI = 300
 IMGW = int(DPI * 2.5)
 IMGH = int(DPI * 3.5)
 
@@ -119,6 +121,7 @@ class CardMaker:
 				self.page()
 
 	def drawGuides(self):
+		# TODO: draw guides based on cmdline opts
 		GUIDECOLOR = (0.5, 0.5, 0.5)
 		c = self.canvas
 		left = self.offsetx
@@ -141,6 +144,7 @@ class CardMaker:
 			c.line(left, y, right, y) 
 
 	def note(self):
+		# TODO: cmdline opt note
 		note = "Story War BETA (created %s)" % DATESTR
 		p = Paragraph(note, COPYSTYLE)
 		tx, ty = p.wrap(2.5*inch, 100)
@@ -190,6 +194,8 @@ def main(datafile, outfile):
 		render(data, LETTER, "%s_LTR_%s.pdf" % (outfile, DATESTR))
 
 if __name__ == "__main__":
+	# TODO: output names, destination page sizes, data load from url
+	# 		all from cmdline options
 	print sys.argv
 	if len(sys.argv) < 3:
 		main("cards.json", "storywar")
