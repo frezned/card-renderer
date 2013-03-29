@@ -14,6 +14,8 @@ import json
 import datetime
 import optparse
 
+import progressbar
+
 def style(source, fontstr):
 	font, size = fontstr.split(":")
 	pdfmetrics.registerFont(TTFont(font, font+'.ttf'))
@@ -152,13 +154,23 @@ class CardMaker:
 			self.note()
 		if self.guides:
 			self.drawGuides()
-		print "--page--"
 		self.x = 0
 		self.y = 0
 		self.canvas.showPage()
 
 	def add_card(self, c):
 		self.cards.append(c)
+
+	def all_cards_progress(self, function):
+		i = 0
+		widgets = [progressbar.Percentage(), ' ', progressbar.Bar(marker='=', left='[', right=']')]
+		bar = progressbar.ProgressBar(widgets=widgets, maxval=len(self.cards))
+		bar.start()
+		for c in self.cards:
+			function(c)
+			i += 1
+			bar.update(i)
+		bar.finish()
 
 	def prepare_cards(self, cmyk):
 		# ensure the destination folders exist
@@ -168,31 +180,36 @@ class CardMaker:
 			os.mkdir("gen")
 		# prepare the cards
 		print "Retrieving card art..."
-		for c in self.cards:
+		def retrieve(c):
 			c.retrieve_image()
+		self.all_cards_progress(retrieve)
 		print "Converting to CMYK..."
-		for c in self.cards:
+		def convert(c):
 			c.convert_image(cmyk)
+		self.all_cards_progress(convert)
 
 	def save(self):
 		self.canvas.save()
 
-	def render(self, pagesize, outfile, note, guides):
+	def render(self, pagesize, outfile, note='', guides=True):
 		self.prepare_canvas(outfile, pagesize, (0, 0))
 		self.notefmt = note
 		self.guides = guides
 		print "Rendering to {out}...".format(out=outfile)
-		for c in self.cards:
-			print c.title
+		def render(c):
 			self.render_card(c)
+		self.all_cards_progress(render)
 		if self.x or self.y:
 			self.page()
 		self.canvas.save()
 
 def loaddata(datafile):
 	if datafile.startswith("http://") or datafile.startswith("https://"):
-		# TODO: load from web
-		return dict(cards=[])
+		print "Downloading", datafile
+		r = urllib2.urlopen(datafile)
+		data = json.load(r)
+		r.close()
+		return data
 	else:
 		with open(datafile) as f:
 			data = json.load(f)
