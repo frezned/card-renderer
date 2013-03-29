@@ -1,7 +1,10 @@
-
 *.swp
-*.pdf
 
+# ignore fonts as they shouldn't be in VCS
+*.ttf
+
+# ignore build targets and intermediaries
+*.pdf
 download
 gen
 upload
