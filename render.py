@@ -14,17 +14,15 @@ import json
 import datetime
 import optparse
 
-def style(source, font, size):
+def style(source, fontstr):
+	font, size = fontstr.split(":")
 	pdfmetrics.registerFont(TTFont(font, font+'.ttf'))
 	ss = getSampleStyleSheet()[source]
 	ss.fontName = font
-	ss.fontSize = size
+	ss.fontSize = float(size)
 	ss.alignment = TA_CENTER
 	return ss
 
-# TODO: load these from a settings file
-COPYSTYLE = style('Normal', 'Candara', 8.5)
-HEADERSTYLE = style('Heading1', 'Whitney-Bold', 14)
 DPI = 300
 
 A4 = (21*cm, 29.7*cm)
@@ -82,8 +80,10 @@ class Card:
 
 class CardMaker:
 
-	def __init__(self):
+	def __init__(self, hfont, cfont):
 		self.cards = []
+		self.headerstyle = style("Heading1", hfont)
+		self.copystyle = style("Normal", cfont)
 
 	def prepare_canvas(self, outfile, pagesize, margin):
 		self.pagesize = pagesize
@@ -101,14 +101,14 @@ class CardMaker:
 		# render image
 		c.drawImage(card.convertedimage, x, y, width=CARDW, height=CARDH)
 		# render title
-		p = Paragraph(card.title, HEADERSTYLE)
+		p = Paragraph(card.title, self.headerstyle)
 		p.wrap(2.5*inch, 100)
 		p.drawOn(c, x, y+210.5)
 		# render copy
 		lines = card.copy.splitlines()
 		i = 0
 		for l in lines:
-			p = Paragraph(l, COPYSTYLE)
+			p = Paragraph(l, self.copystyle)
 			tx, ty = p.wrap(2.5*inch, 100)
 			p.drawOn(c, x, y+28.25-ty*i+ty*0.5*len(lines))
 			i += 1
@@ -120,7 +120,6 @@ class CardMaker:
 				self.page()
 
 	def drawGuides(self):
-		# TODO: draw guides based on cmdline opts
 		GUIDECOLOR = (0.5, 0.5, 0.5)
 		c = self.canvas
 		left = self.offsetx
@@ -143,9 +142,8 @@ class CardMaker:
 			c.line(left, y, right, y) 
 
 	def note(self):
-		# TODO: cmdline opt note
 		note = self.notefmt.format(date=DATESTR)
-		p = Paragraph(note, COPYSTYLE)
+		p = Paragraph(note, self.copystyle)
 		tx, ty = p.wrap(CARDW, 100)
 		p.drawOn(self.canvas, self.offsetx, self.offsety + CARDH + 0.1*cm)
 
@@ -179,8 +177,8 @@ class CardMaker:
 	def save(self):
 		self.canvas.save()
 
-	def render(self, pagesize, outfile, margin=(0, 0), note="", guides=True):
-		self.prepare_canvas(outfile, pagesize, margin)
+	def render(self, pagesize, outfile, note, guides):
+		self.prepare_canvas(outfile, pagesize, (0, 0))
 		self.notefmt = note
 		self.guides = guides
 		print "Rendering to {out}...".format(out=outfile)
@@ -200,8 +198,8 @@ def loaddata(datafile):
 			data = json.load(f)
 			return data
 
-def main(datafile, note="", cmyk=False, outfile="out"):
-	maker = CardMaker()
+def main(datafile, note, cmyk, outfile, hfont, cfont):
+	maker = CardMaker(hfont, cfont)
 	data = loaddata(datafile)
 	for d in data['cards']:
 		maker.add_card(Card(d))
@@ -215,6 +213,8 @@ if __name__ == "__main__":
 	parser.add_option("-n", "--note", dest="note", action="store", default="Story War BETA ({date})")
 	parser.add_option("-c", "--cmyk", dest="cmyk", action="store_true", default=False, help="Convert images to CMYK.")
 	parser.add_option("-o", "--outfile", dest="outfile", action="store")
+	parser.add_option("--headerfont", dest="hfont", action="store", default="Whitney-Bold:14")
+	parser.add_option("--copyfont", dest="cfont", action="store", default="Candara:8.5")
 	(options, args) = parser.parse_args()
 
-	main(args[0], note=options.note, cmyk=options.cmyk, outfile=options.outfile)
+	main(args[0], note=options.note, cmyk=options.cmyk, outfile=options.outfile, hfont=options.hfont, cfont=options.cfont)
