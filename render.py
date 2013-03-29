@@ -12,6 +12,7 @@ import os
 import sys
 import json
 import datetime
+import optparse
 
 def style(source, font, size):
 	pdfmetrics.registerFont(TTFont(font, font+'.ttf'))
@@ -33,8 +34,8 @@ CARD = (2.5*inch, 3.5*inch)
 CARDW = CARD[0]
 CARDH = CARD[1]
 
-IMGW = int(DPI * 2.5)
-IMGH = int(DPI * 3.5)
+IMGW = int(DPI * CARDW/inch)
+IMGH = int(DPI * CARDH/inch)
 
 DATESTR = datetime.datetime.now().strftime("%d-%b-%Y")
 
@@ -64,11 +65,11 @@ class Card:
 			os.rename(downf, img)
 		self.localimage = img
 
-	def convert_image(self):
+	def convert_image(self, cmyk):
 		if not self.convertedimage:
 			frame = Image.open("frame_%s.png" % self.type)
-			mode = "CMYK"
-			new = Image.new("RGBA", frame.size)
+			mode = (cmyk and "CMYK") or "RGBA"
+			new = Image.new(mode, frame.size)
 			art = Image.open(self.localimage).resize((609, 609))
 			new.paste((0, 0, 0))
 			new.paste(art, (int((new.size[0]-art.size[0])*0.5), 175))
@@ -81,20 +82,18 @@ class Card:
 
 class CardMaker:
 
-	def __init__(self, outfile, pagesize, margin):
+	def __init__(self):
+		self.cards = []
+
+	def prepare_canvas(self, outfile, pagesize, margin):
+		self.pagesize = pagesize
 		self.x = 0
 		self.y = 0
-		self.pagesize = pagesize
 		self.columns = int((pagesize[0]-margin[0]*2) / CARDW)
 		self.rows = int((pagesize[1]-margin[1]*2) / CARDH)
 		self.offsetx = (pagesize[0] - self.columns*CARDW) * 0.5
 		self.offsety = (pagesize[1] - CARDH) - (pagesize[1] - self.rows*CARDH) * 0.5
-		self.cards = []
 		self.canvas = canvas.Canvas(outfile, pagesize=(pagesize[0], pagesize[1]))
-		if not os.path.exists("download"):
-			os.mkdir("download")
-		if not os.path.exists("gen"):
-			os.mkdir("gen")
 
 	def render_card(self, card):
 		x, y = (self.offsetx + self.x*CARDW, self.offsety - self.y*CARDH)
@@ -145,14 +144,16 @@ class CardMaker:
 
 	def note(self):
 		# TODO: cmdline opt note
-		note = "Story War BETA (created %s)" % DATESTR
+		note = self.notefmt.format(date=DATESTR)
 		p = Paragraph(note, COPYSTYLE)
-		tx, ty = p.wrap(2.5*inch, 100)
+		tx, ty = p.wrap(CARDW, 100)
 		p.drawOn(self.canvas, self.offsetx, self.offsety + CARDH + 0.1*cm)
 
 	def page(self):
-		self.note()
-		self.drawGuides()
+		if self.notefmt: 
+			self.note()
+		if self.guides:
+			self.drawGuides()
 		print "--page--"
 		self.x = 0
 		self.y = 0
@@ -161,45 +162,59 @@ class CardMaker:
 	def add_card(self, c):
 		self.cards.append(c)
 
-	def save(self):
-		self.canvas.save()
-
-	def run(self):
+	def prepare_cards(self, cmyk):
+		# ensure the destination folders exist
+		if not os.path.exists("download"):
+			os.mkdir("download")
+		if not os.path.exists("gen"):
+			os.mkdir("gen")
+		# prepare the cards
 		print "Retrieving card art..."
 		for c in self.cards:
 			c.retrieve_image()
 		print "Converting to CMYK..."
 		for c in self.cards:
-			c.convert_image()
-		print "Rendering to PDF..."
+			c.convert_image(cmyk)
+
+	def save(self):
+		self.canvas.save()
+
+	def render(self, pagesize, outfile, margin=(0, 0), note="", guides=True):
+		self.prepare_canvas(outfile, pagesize, margin)
+		self.notefmt = note
+		self.guides = guides
+		print "Rendering to {out}...".format(out=outfile)
 		for c in self.cards:
 			print c.title
 			self.render_card(c)
 		if self.x or self.y:
 			self.page()
+		self.canvas.save()
 
-def render(data, pagesize, outfile):
-	cards = [Card(d) for d in data['cards']]
+def loaddata(datafile):
+	if datafile.startswith("http://") or datafile.startswith("https://"):
+		# TODO: load from web
+		return dict(cards=[])
+	else:
+		with open(datafile) as f:
+			data = json.load(f)
+			return data
 
-	maker = CardMaker(outfile, pagesize, (0*cm, 1*cm))
-	for c in cards:
-		maker.add_card(c)
-	maker.run()
-	maker.save()
-
-def main(datafile, outfile):
-	with open(datafile, "r") as f:
-		data = json.load(f)
-		render(data, A4, "%s_A4_%s.pdf" % (outfile, DATESTR))
-		render(data, LETTER, "%s_LTR_%s.pdf" % (outfile, DATESTR))
+def main(datafile, note="", cmyk=False, outfile="out"):
+	maker = CardMaker()
+	data = loaddata(datafile)
+	for d in data['cards']:
+		maker.add_card(Card(d))
+	maker.prepare_cards(cmyk)
+	maker.render(A4, "%s_A4_%s.pdf" % (outfile, DATESTR), note=note)
+	maker.render(LETTER, "%s_LTR_%s.pdf" % (outfile, DATESTR), note=note)
+	maker.render(CARD, "%s_CARD_%s.pdf" % (outfile, DATESTR), guides=False)
 
 if __name__ == "__main__":
-	# TODO: output names, destination page sizes, data load from url
-	# 		all from cmdline options
-	print sys.argv
-	if len(sys.argv) < 3:
-		main("cards.json", "storywar")
-	elif len(sys.argv) < 2:
-		main(sys.argv[1], "storywar")
-	else:
-		main(sys.argv[1], sys.argv[2])
+	parser = optparse.OptionParser()
+	parser.add_option("-n", "--note", dest="note", action="store", default="Story War BETA ({date})")
+	parser.add_option("-c", "--cmyk", dest="cmyk", action="store_true", default=False, help="Convert images to CMYK.")
+	parser.add_option("-o", "--outfile", dest="outfile", action="store")
+	(options, args) = parser.parse_args()
+
+	main(args[0], note=options.note, cmyk=options.cmyk, outfile=options.outfile)
