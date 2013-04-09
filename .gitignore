@@ -6,6 +6,7 @@
 # ignore build targets and intermediaries
 *.pdf
 download
+download-cmyk
 gen
 upload
 
