@@ -209,6 +209,8 @@ class CardMaker:
 		bar.finish()
 
 	def prepare_cards(self, cmyk):
+		# sort cards
+		self.cards.sort(key=lambda c: c.type + c.title)
 		# ensure the destination folders exist
 		def mkdir(n):
 			if not os.path.exists(n): os.mkdir(n)
