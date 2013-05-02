@@ -13,6 +13,7 @@ import sys
 import json
 import datetime
 import optparse
+import tempfile
 
 import progressbar
 
@@ -38,27 +39,24 @@ CARDH = CARD[1]
 
 IMGSIZE = inch*2
 
-PIXW = int(DPI * CARDW/inch)
-PIXH = int(DPI * CARDH/inch)
-
 DATESTR = datetime.datetime.now().strftime("%d-%b-%Y")
 
 class Card:
 
 	def __init__(self, data):
-		self.title = data['title']
-		self.copy = data['text']
-		if data['cmyk']:
+		self.title = data.get('title', "")
+		self.copy = data.get('text', "")
+		if 'cmyk' in data:
 			self.imageurl = data['cmyk']
 			self.cmyk = True
 		else:
-			self.imageurl = data['art']
+			self.imageurl = data.get('art', "")
 			self.cmyk = False
-		self.cid = data['id']
+		self.cid = data.get('id', "X")
 		self.type = data['type']
 		self.localimage = None
 		self.convertedimage = None
-		self.chash = data['hash'] or self.cid
+		self.chash = data.get('hash', "") or self.cid
 		self.cname = "{0}_{1}".format(self.cid, self.chash or "")
 
 	def retrieve_image(self):
@@ -81,23 +79,13 @@ class Card:
 		else:
 			print self.title, "- No url."
 
-	def convert_image(self, cmyk):
-		try:
+	def convert_image(self):
 			if self.localimage and not self.convertedimage:
-				frame = Image.open("frame_%s.png" % self.type)
-				mode = (cmyk and "CMYK") or "RGBA"
-				new = Image.new(mode, frame.size)
-				art = Image.open(self.localimage).resize((609, 609))
-				new.paste((0, 0, 0))
-				new.paste(art, (int((new.size[0]-art.size[0])*0.5), 175))
-				new.paste(frame, mask=frame)
-				new = new.resize((PIXW, PIXH))
-
+				cardimgs = int(IMGSIZE/inch*DPI)
+				art = Image.open(self.localimage).resize((cardimgs, cardimgs), Image.ANTIALIAS)
 				fn = os.path.splitext(os.path.split(self.localimage)[1])[0] + ".tif"
-				self.convertedimage = os.path.join("gen", fn)
-				new.save(self.convertedimage)
-		except Exception as e:
-			pass
+				self.localimage = os.path.join("gen", fn)
+				art.save(self.localimage)
 
 class CardMaker:
 
@@ -107,7 +95,7 @@ class CardMaker:
 		self.copystyle = style("Normal", cfont)
 		self.copystyle.leading = 10
 
-	def prepare_canvas(self, outfile, pagesize, margin):
+	def prepare_canvas(self, pagesize, margin):
 		self.pagesize = pagesize
 		self.x = 0
 		self.y = 0
@@ -115,8 +103,8 @@ class CardMaker:
 		self.rows = int((pagesize[1]-margin[1]*2) / CARDH)
 		self.offsetx = (pagesize[0] - self.columns*CARDW) * 0.5
 		self.offsety = (pagesize[1] - CARDH) - (pagesize[1] - self.rows*CARDH) * 0.5
-		self.canvas = canvas.Canvas(outfile, pagesize=(pagesize[0], pagesize[1]))
-
+		self.tempfile = tempfile.mktemp()
+		self.canvas = canvas.Canvas(self.tempfile, pagesize=(pagesize[0], pagesize[1]))
 		self.frames = {x: ("frame_{type}.tif".format(type=x)) for x in ("IT", "LO", "MO")}
 		self.background = False
 	
@@ -133,22 +121,25 @@ class CardMaker:
 		c.drawImage(frameimg, x, y, width=FRAME[0], height=FRAME[1])
 		# render image
 		try:
-			c.drawImage(card.localimage, x+(CARDW-IMGSIZE)/2, y+21.6*mm, width=inch*2, height=inch*2)
+			if card.localimage:
+				c.drawImage(card.localimage, x+(CARDW-IMGSIZE)/2, y+21.6*mm, width=inch*2, height=inch*2)
 		except Exception as e:
 			print card.title
 			print e
 		# render title
-		p = Paragraph(card.title, self.headerstyle)
-		p.wrap(CARDW, 100)
-		p.drawOn(c, x, y+208)
+		if card.title:
+			p = Paragraph(card.title, self.headerstyle)
+			p.wrap(CARDW, 100)
+			p.drawOn(c, x, y+208)
 		# render copy
-		lines = card.copy.splitlines()
-		i = 0
-		for l in lines:
-			p = Paragraph(l, self.copystyle)
-			tx, ty = p.wrap(CARDW, 100)
-			p.drawOn(c, x, y+28.1-ty*i+ty*0.5*len(lines))
-			i += 1
+		if card.copy:
+			lines = card.copy.splitlines()
+			i = 0
+			for l in lines:
+				p = Paragraph(l, self.copystyle)
+				tx, ty = p.wrap(CARDW, 100)
+				p.drawOn(c, x, y+28.1-ty*i+ty*0.5*len(lines))
+				i += 1
 		self.x += 1
 		if self.x >= self.columns:
 			self.x = 0
@@ -210,7 +201,7 @@ class CardMaker:
 
 	def prepare_cards(self, cmyk):
 		# sort cards
-		self.cards.sort(key=lambda c: c.type + c.title)
+		self.cards.sort(key=lambda c: c.type + (c.title or "zzz"))
 		# ensure the destination folders exist
 		def mkdir(n):
 			if not os.path.exists(n): os.mkdir(n)
@@ -224,14 +215,25 @@ class CardMaker:
 		self.all_cards_progress(retrieve)
 		print "Converting to CMYK..."
 		def convert(c):
-			c.convert_image(cmyk)
-		# self.all_cards_progress(convert)
+			c.convert_image()
+		self.all_cards_progress(convert)
 
-	def save(self):
+	def save(self, outfile):
 		self.canvas.save()
+		fn, ext = os.path.splitext(outfile)
+		amt = 0
+		while True:
+			try:
+				if os.path.exists(outfile):
+					os.unlink(outfile)
+				os.rename(self.tempfile, outfile)
+				return
+			except WindowsError as e:
+				amt += 1
+				outfile = "{0}_{1}{2}".format(fn, amt, ext)
 
 	def render(self, pagesize, outfile, note='', guides=True, drawbackground=False):
-		self.prepare_canvas(outfile, pagesize, (0, 0))
+		self.prepare_canvas(pagesize, (0, 0))
 		self.notefmt = note
 		self.guides = guides
 		self.drawbackground = drawbackground
@@ -241,7 +243,7 @@ class CardMaker:
 		self.all_cards_progress(render)
 		if self.x or self.y:
 			self.page()
-		self.canvas.save()
+		self.save(outfile)
 
 def loaddata(datafile):
 	if datafile.startswith("http://") or datafile.startswith("https://"):
@@ -269,7 +271,7 @@ def main(datafile, note, cmyk, outfile, hfont, cfont, pnp, card):
 
 if __name__ == "__main__":
 	parser = optparse.OptionParser()
-	parser.add_option("-n", "--note", dest="note", action="store", default="Story War BETA ({date})")
+	parser.add_option("-n", "--note", dest="note", action="store", default="Story War")
 	parser.add_option("-c", "--cmyk", dest="cmyk", action="store_true", default=False, help="Convert images to CMYK.")
 	parser.add_option("-o", "--outfile", dest="outfile", action="store")
 	parser.add_option("--headerfont", dest="hfont", action="store", default="Whitney-Bold:14")
