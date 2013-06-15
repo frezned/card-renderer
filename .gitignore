@@ -9,4 +9,6 @@ download
 download-cmyk
 gen
 upload
+output
 
+*.pyc

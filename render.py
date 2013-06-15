@@ -3,10 +3,11 @@ from reportlab.platypus import Paragraph
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.lib.units import inch, cm, mm
-from reportlab.lib.styles import getSampleStyleSheet
-from reportlab.lib.enums import TA_CENTER
+from reportlab.lib.styles import ParagraphStyle
+from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
 
 import Image
+
 import urllib2
 import os
 import sys
@@ -14,18 +15,12 @@ import json
 import datetime
 import optparse
 import tempfile
+import yaml
+from string import Formatter
 
 import progressbar
 
-def style(source, fontstr):
-	font, size = fontstr.split(":")
-	pdfmetrics.registerFont(TTFont(font, font+'.ttf'))
-	ss = getSampleStyleSheet()[source]
-	ss.fontName = font
-	ss.fontSize = float(size)
-	ss.alignment = TA_CENTER
-	return ss
-
+# TODO: some of this stuff should be in the spec file
 DPI = 300
 
 A4 = (210*mm, 297*mm)
@@ -41,6 +36,8 @@ IMGSIZE = inch*2
 
 DATESTR = datetime.datetime.now().strftime("%d-%b-%Y")
 
+# TODO: dumb this down in favour of specfile
+#		just note URL-types, fetch & mod dates
 class Card:
 
 	def __init__(self, data):
@@ -55,9 +52,9 @@ class Card:
 		self.cid = data.get('id', "X")
 		self.type = data['type']
 		self.localimage = None
-		self.convertedimage = None
 		self.chash = data.get('hash', "") or self.cid
 		self.cname = "{0}_{1}".format(self.cid, self.chash or "")
+		self.data = data
 
 	def retrieve_image(self):
 		if self.imageurl:
@@ -76,24 +73,132 @@ class Card:
 				r.close()
 				os.rename(downf, img)
 			self.localimage = img
-		else:
-			print self.title, "- No url."
 
 	def convert_image(self):
-			if self.localimage and not self.convertedimage:
+		if self.localimage and not self.convertedimage:
+			outfn = os.path.splitext(os.path.split(self.localimage)[1])[0] + ".tif"
+			outfn = os.path.join("gen", outfn)
+			if not os.path.exists(outfn):
 				cardimgs = int(IMGSIZE/inch*DPI)
 				art = Image.open(self.localimage).resize((cardimgs, cardimgs), Image.ANTIALIAS)
-				fn = os.path.splitext(os.path.split(self.localimage)[1])[0] + ".tif"
-				self.localimage = os.path.join("gen", fn)
+				self.localimage = outfn
 				art.save(self.localimage)
 
-class CardMaker:
+	def __getitem__(self, key):
+		if key == 'filename':
+			return self.localimage
+		else:
+			return self.data.get(key, "")
 
-	def __init__(self, hfont, cfont):
+class TemplateItem:
+
+	def __init__(self, data):
+		self.name = data.get('name', "")
+		self.width = data.get('width', 0)*mm or CARDW
+		self.height = data.get('height', 0)*mm or CARDH
+		def coordormid(key, ref):
+			val = data.get(key, 0)
+			if val == "mid":
+				return ref
+			else:
+				return val * mm
+		self.x = coordormid('x', 0.5*(CARDW-self.width))
+		self.y = coordormid('y', 0.5*(CARDH-self.height))
+		if data.get('hcenter', False):
+			self.x = (CARDW-self.width) / 2
+
+class GraphicTemplateItem(TemplateItem):
+	
+	def __init__(self, data):
+		TemplateItem.__init__(self, data)
+		self.filename = data.get('filename', "")
+
+	def render(self, canvas, data):
+		filename = Formatter().vformat(self.filename, [], data)
+		if os.path.exists(filename):
+			canvas.drawImage(filename, self.x, self.y, self.width, self.height)
+
+class TextTemplateItem(TemplateItem):
+
+	def __init__(self, data, styles):
+		TemplateItem.__init__(self, data)
+		self.format = data.get('format', "{" + self.name + "}")
+		stylename = data.get('style', self.name)
+		self.style = styles[stylename]
+
+	def render(self, canvas, data):
+		string = Formatter().vformat(self.format, [], data)
+		lines = string.splitlines()
+		i = 0
+		for l in lines:
+			p = Paragraph(l, self.style)
+			tx, ty = p.wrap(self.width, self.height)
+			p.drawOn(canvas, self.x, self.y-ty*i+ty*0.5*len(lines))
+			i += 1
+
+class Template:
+
+	def __init__(self, data, builder):
+		self.name = data.get('name', "")
+		self.key = data.get('key', self.name)
+		self.items = []
+		for e in data.get('elements', []):
+			if type(e) == str:
+				other = builder.templates[e]
+				for i in other.items:
+					self.items.append(i)
+			elif 'filename' in e:
+				self.items.append(GraphicTemplateItem(e))
+			else:
+				self.items.append(TextTemplateItem(e, builder.styles))
+
+	def render(self, canvas, data):
+		for i in self.items:
+			i.render(canvas, data)
+
+class DeckBuilder:
+
+	def __init__(self, data):
+		self.name = data.get('name', "")
+
+		self.styles = {}
+		for sd in data.get('styles', []):
+			name = sd.get('name', "")
+			s = ParagraphStyle(name)
+			fontfile = sd.get('font', "Helvetica")
+			if fontfile.endswith(".ttf") or fontfile.endswith(".otf"):
+				fontname = os.path.splitext(fontfile)[0]
+				pdfmetrics.registerFont(TTFont(fontname, fontfile))
+				s.fontName = fontname
+			else:
+				s.fontName = fontfile
+			s.fontSize = sd.get('size', 10)
+			s.alignment = dict(center=TA_CENTER, left=TA_LEFT, right=TA_RIGHT)[sd.get('align', 'left')]
+			if 'leading' in sd:
+				s.leading = sd['leading']
+			self.styles[name] = s
+
+		self.templates = {}
+		self.keytemplates = {}
+		for td in data.get('templates', []):
+			t = Template(td, self)
+			self.templates[t.name] = t
+			self.keytemplates[t.key] = t
+
+	def render_card(self, canvas, card):
+		canvas.saveState()
+		template = self.keytemplates[card.type]
+		template.render(canvas, card)
+		canvas.restoreState()
+
+class CardRenderer:
+
+	def __init__(self):
 		self.cards = []
-		self.headerstyle = style("Heading1", hfont)
-		self.copystyle = style("Normal", cfont)
-		self.copystyle.leading = 10
+
+		with open("storywar.yaml", 'r') as f:
+			data = yaml.load(f)
+			self.db = DeckBuilder(data)
 
 	def prepare_canvas(self, pagesize, margin):
 		self.pagesize = pagesize
@@ -107,45 +212,23 @@ class CardMaker:
 		self.canvas = canvas.Canvas(self.tempfile, pagesize=(pagesize[0], pagesize[1]))
 		self.frames = {x: ("frame_{type}.tif".format(type=x)) for x in ("IT", "LO", "MO")}
 		self.background = False
-	
+
 	def render_card(self, card):
-		x, y = (self.offsetx + self.x*CARDW, self.offsety - self.y*CARDH)
+		# ensure we're on a prepared page
+		self.startpage()
+		# render the card
 		c = self.canvas
-		if self.drawbackground and not self.background:
-			# render background
-			c.setFillColorRGB(0, 0, 0)
-			c.rect(0, 0, self.pagesize[0], self.pagesize[1], stroke=0, fill=1)
-			self.background = True
-		# render frame
-		frameimg = self.frames[card.type]
-		c.drawImage(frameimg, x, y, width=FRAME[0], height=FRAME[1])
-		# render image
-		try:
-			if card.localimage:
-				c.drawImage(card.localimage, x+(CARDW-IMGSIZE)/2, y+21.6*mm, width=inch*2, height=inch*2)
-		except Exception as e:
-			print card.title
-			print e
-		# render title
-		if card.title:
-			p = Paragraph(card.title, self.headerstyle)
-			p.wrap(CARDW, 100)
-			p.drawOn(c, x, y+208)
-		# render copy
-		if card.copy:
-			lines = card.copy.splitlines()
-			i = 0
-			for l in lines:
-				p = Paragraph(l, self.copystyle)
-				tx, ty = p.wrap(CARDW, 100)
-				p.drawOn(c, x, y+28.1-ty*i+ty*0.5*len(lines))
-				i += 1
+		c.saveState()
+		c.translate(self.offsetx + self.x*CARDW, self.offsety - self.y*CARDH)
+		self.db.render_card(c, card)
+		c.restoreState()
+		# advance the card position
 		self.x += 1
 		if self.x >= self.columns:
 			self.x = 0
 			self.y += 1
 			if self.y >= self.rows:
-				self.page()
+				self.endpage()
 
 	def drawGuides(self):
 		GUIDECOLOR = (0.5, 0.5, 0.5)
@@ -170,20 +253,31 @@ class CardMaker:
 			c.line(left, y, right, y) 
 
 	def note(self):
-		note = self.notefmt.format(date=DATESTR)
-		p = Paragraph(note, self.copystyle)
-		tx, ty = p.wrap(CARDW, 100)
-		p.drawOn(self.canvas, self.offsetx, self.offsety + CARDH + 0.1*cm)
+		if self.notefmt:
+			note = self.notefmt.format(date=DATESTR)
+			p = Paragraph(note, self.copystyle)
+			tx, ty = p.wrap(CARDW, 100)
+			p.drawOn(self.canvas, self.offsetx, self.offsety + CARDH + 0.1*cm)
 
-	def page(self):
-		if self.notefmt: 
-			self.note()
-		if self.guides:
-			self.drawGuides()
-		self.x = 0
-		self.y = 0
-		self.canvas.showPage()
-		self.background = False
+	def startpage(self):
+		if not self.page:
+			if self.drawbackground:
+				# render background
+				c.setFillColorRGB(0, 0, 0)
+				c.rect(0, 0, self.pagesize[0], self.pagesize[1], stroke=0, fill=1)
+				self.background = True
+			self.page = True
+
+	def endpage(self):
+		if self.page:
+			if self.notefmt: 
+				self.note()
+			if self.guides:
+				self.drawGuides()
+			self.x = 0
+			self.y = 0
+			self.canvas.showPage()
+			self.page = False
 
 	def add_card(self, c):
 		self.cards.append(c)
@@ -217,6 +311,7 @@ class CardMaker:
 		def convert(c):
 			c.convert_image()
 		self.all_cards_progress(convert)
+		self.page = False
 
 	def save(self, outfile):
 		self.canvas.save()
@@ -241,8 +336,7 @@ class CardMaker:
 		def render(c):
 			self.render_card(c)
 		self.all_cards_progress(render)
-		if self.x or self.y:
-			self.page()
+		self.endpage()
 		self.save(outfile)
 
 def loaddata(datafile):
@@ -257,11 +351,21 @@ def loaddata(datafile):
 			data = json.load(f)
 			return data
 
-def main(datafile, note, cmyk, outfile, hfont, cfont, pnp, card):
-	maker = CardMaker(hfont, cfont)
+def main(datafile, note, cmyk, outfile, pnp, card, blanks):
+	maker = CardRenderer()
 	data = loaddata(datafile)
 	for d in data['cards']:
 		maker.add_card(Card(d))
+	if blanks:
+		amount = 112 - len(maker.cards)
+		if amount < 0 or amount % 4:
+			raise Exception("weird number of cards")
+		else:
+			blankc = amount/4
+			blankcounts = dict(MO=blankc*2, IT=blankc, LO=blankc)
+			print blankcounts
+			for t, amt in blankcounts.items():
+				[maker.add_card(Card(dict(type=t))) for i in range(amt)]
 	maker.prepare_cards(cmyk)
 	if pnp:
 		maker.render(A4, "%s_A4_%s.pdf" % (outfile, DATESTR), note=note)
@@ -271,13 +375,12 @@ def main(datafile, note, cmyk, outfile, hfont, cfont, pnp, card):
 
 if __name__ == "__main__":
 	parser = optparse.OptionParser()
-	parser.add_option("-n", "--note", dest="note", action="store", default="Story War")
+	parser.add_option("-n", "--note", dest="note", action="store", default="Story War Print and Play {date}")
 	parser.add_option("-c", "--cmyk", dest="cmyk", action="store_true", default=False, help="Convert images to CMYK.")
 	parser.add_option("-o", "--outfile", dest="outfile", action="store")
-	parser.add_option("--headerfont", dest="hfont", action="store", default="Whitney-Bold:14")
-	parser.add_option("--copyfont", dest="cfont", action="store", default="Candara:8.5")
 	parser.add_option("--nopnp", dest="pnp", action="store_false", default=True)
 	parser.add_option("--nocard", dest="card", action="store_false", default=True)
+	parser.add_option("--noblanks", dest="blanks", action="store_false", default=True)
 	(options, args) = parser.parse_args()
 
-	main(args[0], note=options.note, cmyk=options.cmyk, outfile=options.outfile, hfont=options.hfont, cfont=options.cfont, pnp=options.pnp, card=options.card)
+	main(args[0], note=options.note, cmyk=options.cmyk, outfile=options.outfile, blanks=options.blanks, pnp=options.pnp, card=options.card)
