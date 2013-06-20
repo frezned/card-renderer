@@ -307,7 +307,8 @@ class CardRenderer:
 		self.drawbackground = drawbackground
 		print "Rendering to {out}...".format(out=outfile)
 		def render(t, c):
-			self.render_card(t, c)
+			for i in range(c.get('copies', 1)):
+				self.render_card(t, c)
 		self.all_cards_progress(render)
 		self.endpage()
 		self.save(outfile)
