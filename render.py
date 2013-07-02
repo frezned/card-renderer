@@ -1,12 +1,5 @@
-from reportlab.pdfgen import canvas
-from reportlab.platypus import Paragraph
-from reportlab.pdfbase import pdfmetrics
-from reportlab.pdfbase.ttfonts import TTFont
-from reportlab.lib.units import inch, cm, mm
-from reportlab.lib.styles import ParagraphStyle
-from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
-
-import Image
+from reportlab.lib.units import inch, mm
+from PIL import Image
 
 import urllib2
 import os
@@ -19,6 +12,9 @@ import yaml
 from string import Formatter
 
 import progressbar
+
+from pdfcanvas import PDFCanvas
+from imagecanvas import ImageCanvas
 
 # TODO: some of this stuff should be in the spec file
 DPI = 300
@@ -34,8 +30,6 @@ FRAME = (63*mm, 88*mm)
 CARDW = CARD[0]
 CARDH = CARD[1]
 
-DATESTR = datetime.datetime.now().strftime("%d-%b-%Y")
-
 import base64, hashlib
 def hash(string):
 	hasher = hashlib.sha1(string)
@@ -43,7 +37,8 @@ def hash(string):
 
 class TemplateItem:
 
-	def __init__(self, data):
+	def __init__(self, builder, data):
+		self.builder = builder
 		self.name = data.get('name', "")
 		self.width = data.get('width', 0)*mm or CARDW
 		self.height = data.get('height', 0)*mm or CARDH
@@ -58,17 +53,20 @@ class TemplateItem:
 		if data.get('hcenter', False):
 			self.x = (CARDW-self.width) / 2
 	
+	def format(self, fmtstring, data):
+		return self.builder.format(fmtstring, data)
+
 	def prepare(self, data):
 		pass
 
 class GraphicTemplateItem(TemplateItem):
 	
-	def __init__(self, data):
-		TemplateItem.__init__(self, data)
+	def __init__(self, builder, data):
+		TemplateItem.__init__(self, builder, data)
 		self.filename = data.get('filename', "")
 
 	def get_local_url(self, data):
-		url = Formatter().vformat(self.filename, [], data)
+		url = self.format(self.filename, data)
 		if url and url.startswith("http"):
 			pre, post = os.path.split(url)
 			filename = hash(pre) + "_" + post
@@ -77,7 +75,7 @@ class GraphicTemplateItem(TemplateItem):
 			return url
 
 	def prepare(self, data):
-		url = Formatter().vformat(self.filename, [], data)
+		url = self.format(self.filename, data)
 		factor = 300 * (1 / inch)
 		size = (int(self.width*factor), int(self.height*factor))
 		if url and url.startswith("http"):
@@ -103,21 +101,14 @@ class GraphicTemplateItem(TemplateItem):
 
 class TextTemplateItem(TemplateItem):
 
-	def __init__(self, data, styles):
-		TemplateItem.__init__(self, data)
-		self.format = data.get('format', "{" + self.name + "}")
-		stylename = data.get('style', self.name)
-		self.style = styles[stylename]
+	def __init__(self, builder, data):
+		TemplateItem.__init__(self, builder, data)
+		self.textformat = data.get('format', "{" + self.name + "}")
+		self.style = data.get('style', self.name)
 
 	def render(self, canvas, data):
-		string = Formatter().vformat(self.format, [], data)
-		lines = string.splitlines()
-		i = 0
-		for l in lines:
-			p = Paragraph(l, self.style)
-			tx, ty = p.wrap(self.width, self.height)
-			p.drawOn(canvas, self.x, self.y-ty*i+ty*0.5*len(lines))
-			i += 1
+		string = self.format(self.textformat, data)
+		canvas.renderText(string, self.style, self.x, self.y, self.width, self.height)
 
 class Template:
 
@@ -131,9 +122,9 @@ class Template:
 				for i in other.items:
 					self.items.append(i)
 			elif 'filename' in e:
-				self.items.append(GraphicTemplateItem(e))
+				self.items.append(GraphicTemplateItem(builder, e))
 			else:
-				self.items.append(TextTemplateItem(e, builder.styles))
+				self.items.append(TextTemplateItem(builder, e))
 		self.cards = []
 
 	def render(self, canvas, data):
@@ -154,109 +145,36 @@ class CardRenderer:
 		self.readfiles = set()
 		self.outputs = []
 		self.name = ""
+		self.data = dict(
+				name="",
+				date=datetime.datetime.now().strftime("%d-%b-%Y")
+				)
+		self.styles['note'] = dict(align='center', size=9)
 
-		self.notestyle = ParagraphStyle('note')
-
-	def prepare_canvas(self, pagesize, margin=(0,0)):
-		self.pagesize = pagesize
-		self.x = 0
-		self.y = 0
-		self.columns = int((pagesize[0]-margin[0]*2) / CARDW)
-		self.rows = int((pagesize[1]-margin[1]*2) / CARDH)
-		self.offsetx = (pagesize[0] - self.columns*CARDW) * 0.5
-		self.offsety = (pagesize[1] - CARDH) - (pagesize[1] - self.rows*CARDH) * 0.5
-		self.tempfile = tempfile.mktemp()
-		self.canvas = canvas.Canvas(self.tempfile, pagesize=(pagesize[0], pagesize[1]))
-		self.frames = {x: ("frame_{type}.tif".format(type=x)) for x in ("IT", "LO", "MO")}
-		self.background = False
+	def format(self, fmtstring, data={}):
+		merged_data = {}
+		merged_data.update(self.data)
+		merged_data.update(data)
+		return Formatter().vformat(fmtstring, [], merged_data)
 
 	def render_card(self, template, card):
-		# ensure we're on a prepared page
-		self.startpage()
-		# render the card
-		c = self.canvas
-		c.saveState()
-		c.translate(self.offsetx + self.x*CARDW, self.offsety - self.y*CARDH)
-		template.render(c, card)
-		c.restoreState()
-		# advance the card position
-		self.x += 1
-		if self.x >= self.columns:
-			self.x = 0
-			self.y += 1
-			if self.y >= self.rows:
-				self.endpage()
+		self.canvas.beginCard(card)
+		template.render(self.canvas, card)
+		self.canvas.endCard()
 
 	def parse_templates(self, data):
 		for sd in data.get('styles', []):
-			name = sd.get('name', "")
-			s = ParagraphStyle(name)
-			fontfile = sd.get('font', "Helvetica")
-			if fontfile.endswith(".ttf") or fontfile.endswith(".otf"):
-				fontname = os.path.splitext(fontfile)[0]
-				pdfmetrics.registerFont(TTFont(fontname, fontfile))
-				s.fontName = fontname
-			else:
-				s.fontName = fontfile
-			s.fontSize = sd.get('size', 10)
-			s.alignment = dict(center=TA_CENTER, left=TA_LEFT, right=TA_RIGHT)[sd.get('align', 'left')]
-			if 'leading' in sd:
-				s.leading = sd['leading']
-			self.styles[name] = s
+			self.styles[sd.get('name', "")] = sd
 
 		for td in data.get('templates', []):
 			t = Template(td, self)
 			self.templates[t.name] = t
 			self.keytemplates[t.key] = t
 
-	def drawGuides(self):
-		GUIDECOLOR = (0.5, 0.5, 0.5)
-		c = self.canvas
-		left = self.offsetx
-		right = left + CARDW*self.columns
-		top = self.offsety + CARDH
-		bottom = top - CARDH*self.rows
-		for ix in range(0, self.columns+1):
-			x = self.offsetx + CARDW*ix
-			c.setStrokeColorRGB(*GUIDECOLOR)
-			c.line(x, self.pagesize[1], x, top)
-			c.line(x, bottom, x, 0)
-			c.setStrokeColorRGB(1, 1, 1)
-			c.line(x, top, x, bottom)
-		for iy in range(-1, self.rows):
-			y = self.offsety - CARDH*iy
-			c.setStrokeColorRGB(*GUIDECOLOR)
-			c.line(0, y, left, y)
-			c.line(right, y, self.pagesize[0], y)
-			c.setStrokeColorRGB(1, 1, 1)
-			c.line(left, y, right, y) 
-
 	def note(self):
 		if self.notefmt:
-			note = self.notefmt.format(date=DATESTR, name=self.name)
-			p = Paragraph(note, self.notestyle)
-			tx, ty = p.wrap(CARDW, 100)
-			p.drawOn(self.canvas, self.offsetx, self.offsety + CARDH + 0.1*cm)
-
-	def startpage(self):
-		if not self.page:
-			if self.drawbackground:
-				# render background
-				self.canvas.setFillColorRGB(0, 0, 0)
-				self.canvas.rect(0, 0, self.pagesize[0], self.pagesize[1], stroke=0, fill=1)
-				self.background = True
-			self.page = True
-
-	def endpage(self):
-		if self.page:
-			if self.notefmt: 
-				self.note()
-			if self.guides:
-				self.drawGuides()
-			self.x = 0
-			self.y = 0
-			self.canvas.showPage()
-			self.page = False
+			note = self.format(self.notefmt)
+			self.canvas.renderText(note, self.notestyle, self.xoffsetx, self.offsety + CARDH + 1*mm, CARDW, 100)
 
 	def all_cards_progress(self, function):
 		i = 0
@@ -286,22 +204,14 @@ class CardRenderer:
 		self.all_cards_progress(prepare)
 		self.page = False
 
-	def save(self, outfile):
-		self.canvas.save()
-		fn, ext = os.path.splitext(outfile)
-		amt = 0
-		while True:
-			try:
-				if os.path.exists(outfile):
-					os.unlink(outfile)
-				os.rename(self.tempfile, outfile)
-				return
-			except WindowsError as e:
-				amt += 1
-				outfile = "{0}_{1}{2}".format(fn, amt, ext)
-
 	def render(self, pagesize, outfile, note='', guides=True, drawbackground=False):
-		self.prepare_canvas(pagesize)
+		if outfile.endswith(".pdf"):
+			filename = self.format(outfile).replace(" ", "")
+			self.canvas = PDFCanvas(CARDW, CARDH, filename, pagesize, (0,0))
+		else:
+			self.canvas = ImageCanvas(CARDW, CARDH, outfile, self.format)
+		for s in self.styles:
+			self.canvas.addStyle(self.styles[s])
 		self.notefmt = note
 		self.guides = guides
 		self.drawbackground = drawbackground
@@ -310,8 +220,7 @@ class CardRenderer:
 			for i in range(c.get('copies', 1)):
 				self.render_card(t, c)
 		self.all_cards_progress(render)
-		self.endpage()
-		self.save(outfile)
+		self.canvas.finish()
 
 	def readfile(self, filename):
 		if filename not in self.readfiles:
@@ -321,7 +230,10 @@ class CardRenderer:
 			self.parse_output(data)
 			self.parse_templates(data)
 			self.parse_decks(data)
-			self.name = data.get('name', self.name)
+			self.parse_data(data)
+
+	def parse_data(self, data):
+		self.data.update(data)
 
 	def parse_use(self, data):
 		if 'use' in data:
@@ -350,7 +262,7 @@ class CardRenderer:
 		for o in self.outputs:
 			self.render(
 					pagesize=SIZES[o.get('size', "A4")],
-					outfile = o['filename'].format(name=self.name, date=DATESTR).replace(" ", ""),
+					outfile = o['filename'],
 					note = o.get("note", ""),
 					guides = o.get("guides", True),
 					drawbackground = o.get("background", False)
