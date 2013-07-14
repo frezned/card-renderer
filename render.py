@@ -9,6 +9,7 @@ import datetime
 import optparse
 import tempfile
 import yaml
+import csv
 from string import Formatter
 
 import progressbar
@@ -171,11 +172,6 @@ class CardRenderer:
 			self.templates[t.name] = t
 			self.keytemplates[t.key] = t
 
-	def note(self):
-		if self.notefmt:
-			note = self.format(self.notefmt)
-			self.canvas.renderText(note, self.notestyle, self.xoffsetx, self.offsety + CARDH + 1*mm, CARDW, 100)
-
 	def all_cards_progress(self, function):
 		i = 0
 		cards = []
@@ -207,7 +203,7 @@ class CardRenderer:
 	def render(self, pagesize, outfile, note='', guides=True, drawbackground=False):
 		if outfile.endswith(".pdf"):
 			filename = self.format(outfile).replace(" ", "")
-			self.canvas = PDFCanvas(CARDW, CARDH, filename, pagesize, (0,0))
+			self.canvas = PDFCanvas(CARDW, CARDH, filename, pagesize, (0,0), drawbackground, self.format(note))
 		else:
 			self.canvas = ImageCanvas(CARDW, CARDH, outfile, self.format)
 		for s in self.styles:
@@ -253,6 +249,14 @@ class CardRenderer:
 			template = self.templates[d['template']]
 			for c in d.get('cards', []):
 				template.cards.append(c)
+			if 'use' in d:
+				use = d['use']
+				if type(use) == str:
+					for c in loaddata(use):
+						template.cards.append(c)
+				else:
+					for u in use:
+						self.readfile(u)
 		for c in data.get('cards', []):
 			template = self.keytemplates[c['type']]
 			template.cards.append(c)
@@ -271,15 +275,21 @@ class CardRenderer:
 def loaddata(datafile):
 	if datafile.startswith("http://") or datafile.startswith("https://"):
 		print "Downloading", datafile
-		r = urllib2.urlopen(datafile)
-		data = yaml.load(r)
-		r.close()
-		return data
+		f = urllib2.urlopen(datafile)
 	else:
-		with open(datafile) as f:
-			data = yaml.load(f)
-			return data
-
+		f = open(datafile)
+	if datafile.endswith(".csv"):
+		# csv is always card definitions
+		reader = csv.DictReader(f)
+		data = []
+		for row in reader:
+			data.append(row)
+	else:
+		# assume it's yaml
+		data = yaml.load(f)
+	f.close()
+	return data
+	
 def main(datafile):
 	maker = CardRenderer()
 	maker.readfile(datafile)

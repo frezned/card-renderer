@@ -6,12 +6,13 @@ from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.lib.styles import ParagraphStyle
 from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
+from reportlab.lib.units import mm
 
 class PDFCanvas:
 
-	def __init__(self, cardw, cardh, outfile, pagesize, margin):
+	def __init__(self, cardw, cardh, outfile, pagesize, margin, background, note):
 		self.outfile = outfile
-		self.drawbackground = True
+		self.drawbackground = background
 		self.pagesize = pagesize
 		self.x = 0
 		self.y = 0
@@ -25,8 +26,9 @@ class PDFCanvas:
 		self.canvas = canvas.Canvas(self.tempfile, pagesize=(pagesize[0], pagesize[1]))
 		self.styles = {}
 		self.page = False
-		self.notefmt = None
-		self.guides = False
+		self.note = note
+		self.guides = True
+		self.addStyle(dict(name='note', size=8, align='center'))
 
 	def drawImage(self, filename, x, y, width, height):
 		if os.path.exists(filename):
@@ -55,7 +57,7 @@ class PDFCanvas:
 			p = Paragraph(l, style)
 			tx, ty = p.wrap(width, height)
 			voffset = ty*0.5*len(lines) - ty*i
-			p.drawOn(self.canvas, x, y - voffset)
+			p.drawOn(self.canvas, x, y + voffset)
 			i += 1
 
 	def beginCard(self, card):
@@ -84,8 +86,8 @@ class PDFCanvas:
 
 	def endPage(self):
 		assert self.page
-		if self.notefmt: 
-			self.note()
+		if self.note: 
+			self.drawnote()
 		if self.guides:
 			self.drawGuides()
 		self.x = 0
@@ -114,6 +116,10 @@ class PDFCanvas:
 			canvas.line(right, y, self.pagesize[0], y)
 			canvas.setStrokeColorRGB(1, 1, 1)
 			canvas.line(left, y, right, y) 
+
+	def drawnote(self):
+		if self.note:
+			self.renderText(self.note, 'note', self.offsetx, self.offsety + self.cardh + 1*mm, self.cardw, 100)
 
 	def finish(self):
 		if self.page:
