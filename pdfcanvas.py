@@ -51,14 +51,19 @@ class PDFCanvas:
 
 	def renderText(self, text, stylename, x, y, width, height):
 		lines = text.splitlines()
+		paras = []
+		height = 0
 		i = 0
 		style = self.styles[stylename]
 		for l in lines:
 			p = Paragraph(l, style)
 			tx, ty = p.wrap(width, height)
-			voffset = ty*0.5*len(lines) - ty*i
-			p.drawOn(self.canvas, x, y + voffset)
-			i += 1
+			height += ty
+			paras.append((p, height))
+		offset = height/2
+		for p, h in paras:
+			p.drawOn(self.canvas, x, y - offset)
+			offset -= h
 
 	def beginCard(self, card):
 		if not self.page:

@@ -28,9 +28,6 @@ SIZES = dict(
 )
 FRAME = (63*mm, 88*mm)
 
-CARDW = CARD[0]
-CARDH = CARD[1]
-
 import base64, hashlib
 def hash(string):
 	hasher = hashlib.sha1(string)
@@ -41,18 +38,18 @@ class TemplateItem:
 	def __init__(self, builder, data):
 		self.builder = builder
 		self.name = data.get('name', "")
-		self.width = data.get('width', 0)*mm or CARDW
-		self.height = data.get('height', 0)*mm or CARDH
+		self.width = data.get('width', 0)*mm or builder.cardw
+		self.height = data.get('height', 0)*mm or builder.cardh
 		def coordormid(key, ref):
 			val = data.get(key, 0)
 			if val == "mid":
 				return ref
 			else:
 				return val * mm
-		self.x = coordormid('x', 0.5*(CARDW-self.width))
-		self.y = coordormid('y', 0.5*(CARDH-self.height))
+		self.x = coordormid('x', 0.5*(builder.cardw-self.width))
+		self.y = coordormid('y', 0.5*(builder.cardh-self.height))
 		if data.get('hcenter', False):
-			self.x = (CARDW-self.width) / 2
+			self.x = (builder.cardw-self.width) / 2
 	
 	def format(self, fmtstring, data):
 		return self.builder.format(fmtstring, data)
@@ -146,6 +143,8 @@ class CardRenderer:
 		self.readfiles = set()
 		self.outputs = []
 		self.name = ""
+		self.cardw = CARD[0]
+		self.cardh = CARD[1]
 		self.data = dict(
 				name="",
 				date=datetime.datetime.now().strftime("%d-%b-%Y")
@@ -203,9 +202,9 @@ class CardRenderer:
 	def render(self, pagesize, outfile, note='', guides=True, drawbackground=False):
 		if outfile.endswith(".pdf"):
 			filename = self.format(outfile).replace(" ", "")
-			self.canvas = PDFCanvas(CARDW, CARDH, filename, pagesize, (0,0), drawbackground, self.format(note))
+			self.canvas = PDFCanvas(self.cardw, self.cardh, filename, pagesize, (0,0), drawbackground, self.format(note))
 		else:
-			self.canvas = ImageCanvas(CARDW, CARDH, outfile, self.format)
+			self.canvas = ImageCanvas(self.cardw, self.cardh, outfile, self.format)
 		for s in self.styles:
 			self.canvas.addStyle(self.styles[s])
 		self.notefmt = note
@@ -213,7 +212,7 @@ class CardRenderer:
 		self.drawbackground = drawbackground
 		print "Rendering to {out}...".format(out=outfile)
 		def render(t, c):
-			for i in range(c.get('copies', 1)):
+			for i in range(int(c.get('copies', 1))):
 				self.render_card(t, c)
 		self.all_cards_progress(render)
 		self.canvas.finish()
@@ -222,13 +221,17 @@ class CardRenderer:
 		if filename not in self.readfiles:
 			self.readfiles.add(filename)
 			data = loaddata(filename)
+			self.parse_data(data)
 			self.parse_use(data)
 			self.parse_output(data)
 			self.parse_templates(data)
 			self.parse_decks(data)
-			self.parse_data(data)
 
 	def parse_data(self, data):
+		if 'cardwidth' in data:
+			self.cardw = data.get('cardwidth') * mm
+		if 'cardheight' in data:
+			self.cardh = data.get('cardheight') * mm
 		self.data.update(data)
 
 	def parse_use(self, data):
@@ -283,7 +286,7 @@ def loaddata(datafile):
 		reader = csv.DictReader(f)
 		data = []
 		for row in reader:
-			data.append(row)
+			data.append({k: v.replace('|', '\n') for k, v in row.iteritems()})
 	else:
 		# assume it's yaml
 		data = yaml.load(f)
