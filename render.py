@@ -280,6 +280,7 @@ def loaddata(datafile):
 		print "Downloading", datafile
 		f = urllib2.urlopen(datafile)
 	else:
+		print "Reading", datafile
 		f = open(datafile)
 	if datafile.endswith(".csv"):
 		# csv is always card definitions
