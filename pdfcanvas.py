@@ -58,12 +58,15 @@ class PDFCanvas:
 		for l in lines:
 			p = Paragraph(l, style)
 			tx, ty = p.wrap(width, height)
-			height += ty
-			paras.append((p, height))
-		offset = height/2
-		for p, h in paras:
-			p.drawOn(self.canvas, x, y - offset)
-			offset -= h
+		#	height += ty
+		#	paras.append((p, height))
+			voffset = ty*0.5*len(lines) - ty*i
+			p.drawOn(self.canvas, x, y + voffset)
+			i += 1
+		#offset = height/2
+		#for p, h in paras:
+		#	p.drawOn(self.canvas, x, y - offset)
+		#	offset -= h
 
 	def beginCard(self, card):
 		if not self.page:
