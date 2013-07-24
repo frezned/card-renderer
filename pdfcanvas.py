@@ -10,7 +10,7 @@ from reportlab.lib.units import mm
 
 class PDFCanvas:
 
-	def __init__(self, cardw, cardh, outfile, pagesize, margin, background, note):
+	def __init__(self, cardw, cardh, outfile, pagesize, margin, background, note, guides):
 		self.outfile = outfile
 		self.drawbackground = background
 		self.pagesize = pagesize
@@ -27,12 +27,53 @@ class PDFCanvas:
 		self.styles = {}
 		self.page = False
 		self.note = note
-		self.guides = True
+		self.guides = guides
 		self.addStyle(dict(name='note', size=8, align='center'))
 
 	def drawImage(self, filename, x, y, width, height):
 		if os.path.exists(filename):
 			self.canvas.drawImage(filename, x, y, width, height)
+
+	def setColor(self, stroke, colorstring):
+		if not colorstring:
+			return
+		print colorstring
+		if colorstring.startswith("#"):
+			rgb = True
+			colorstring = colorstring[1:]
+			if len(colorstring) == 3:
+				r = int(colorstring[0], 16)/15.0
+				g = int(colorstring[1], 16)/15.0
+				b = int(colorstring[2], 16)/15.0
+				a = 255/255.0
+			elif len(colorstring) == 6:
+				r = int(colorstring[0:2], 16)/255.0
+				g = int(colorstring[2:4], 16)/255.0
+				b = int(colorstring[4:6], 16)/255.0
+				a = 255/255.0
+			elif len(colorstring) == 8:
+				r = int(colorstring[0:1], 16)/255.0
+				g = int(colorstring[2:3], 16)/255.0
+				b = int(colorstring[4:5], 16)/255.0
+				a = int(colorstring[6:7], 16)/255.0
+		elif colorstring.startswith("rgb("):
+			rgb = True
+			pass
+		elif colorstring.startswith("cmyk("):
+			rgb = False
+			pass
+		if stroke:
+			self.canvas.setStrokeColor((r, g, b))	
+		else:
+			self.canvas.setFillColor((r, g, b))	
+
+	def drawShape(self, shape, stroke, fill, x, y, width, height):
+		self.setColor(False, fill)
+		self.setColor(True, stroke)
+		if shape == "circle":
+			self.canvas.ellipse(x, y, x+width, x+height, fill=fill and 1 or 0, stroke=stroke and 1 or 0)
+		elif shape == "rect":
+			self.canvas.rect(x, y, width, height, fill=fill and 1 or 0, stroke=stroke and 1 or 0)
 
 	def addStyle(self, data):
 		name = data.get('name', "")

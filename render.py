@@ -108,6 +108,20 @@ class TextTemplateItem(TemplateItem):
 		string = self.format(self.textformat, data)
 		canvas.renderText(string, self.style, self.x, self.y, self.width, self.height)
 
+class DrawTemplateItem(TemplateItem):
+
+	def __init__(self, builder, data):
+		TemplateItem.__init__(self, builder, data)
+		self.shape = data.get('shape', 'square')
+		self.stroke = data.get('stroke', '')
+		self.fill = data.get('fill', '')
+
+	def render(self, canvas, data):
+		print self.fill, self.stroke, data
+		stroke = self.format(self.stroke, data)
+		fill = self.format(self.fill, data)
+		canvas.drawShape(self.shape, stroke, fill, self.x, self.y, self.width, self.height)
+
 class Template:
 
 	def __init__(self, data, builder):
@@ -121,6 +135,8 @@ class Template:
 					self.items.append(i)
 			elif 'filename' in e:
 				self.items.append(GraphicTemplateItem(builder, e))
+			elif 'shape' in e:
+				self.items.append(DrawTemplateItem(builder, e))
 			else:
 				self.items.append(TextTemplateItem(builder, e))
 		self.cards = []
@@ -152,10 +168,13 @@ class CardRenderer:
 		self.styles['note'] = dict(align='center', size=9)
 
 	def format(self, fmtstring, data={}):
-		merged_data = {}
-		merged_data.update(self.data)
-		merged_data.update(data)
-		return Formatter().vformat(fmtstring, [], merged_data)
+		try:
+			merged_data = {}
+			merged_data.update(self.data)
+			merged_data.update(data)
+			return Formatter().vformat(fmtstring, [], merged_data)
+		except KeyError as e:
+			raise Exception(fmtstring)
 
 	def render_card(self, template, card):
 		self.canvas.beginCard(card)
@@ -202,13 +221,12 @@ class CardRenderer:
 	def render(self, pagesize, outfile, note='', guides=True, drawbackground=False):
 		if outfile.endswith(".pdf"):
 			filename = self.format(outfile).replace(" ", "")
-			self.canvas = PDFCanvas(self.cardw, self.cardh, filename, pagesize, (0,0), drawbackground, self.format(note))
+			self.canvas = PDFCanvas(self.cardw, self.cardh, filename, pagesize, (0,0), drawbackground, self.format(note), guides)
 		else:
 			self.canvas = ImageCanvas(self.cardw, self.cardh, outfile, self.format)
 		for s in self.styles:
 			self.canvas.addStyle(self.styles[s])
 		self.notefmt = note
-		self.guides = guides
 		self.drawbackground = drawbackground
 		print "Rendering to {out}...".format(out=outfile)
 		def render(t, c):
