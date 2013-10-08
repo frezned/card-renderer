@@ -133,6 +133,9 @@ class Template:
 		for i in self.items:
 			i.prepare(data)
 
+	def sort(self):
+		self.cards.sort(key=lambda x: x['title'])
+
 class CardRenderer:
 
 	def __init__(self):
@@ -260,13 +263,22 @@ class CardRenderer:
 				else:
 					for u in use:
 						self.readfile(u)
+			template.sort()
 		for c in data.get('cards', []):
 			template = self.keytemplates[c['type']]
 			template.cards.append(c)
+			template.sort()
 
-	def run(self):
+	def run(self, targets):
 		self.prepare_cards()
-		for o in self.outputs:
+		if not targets:
+			outputs = self.outputs
+		else:
+			if type(targets) == str:
+				targets = [targets]
+			outputs = [o for o in self.outputs if o['name'] in targets]
+
+		for o in outputs:
 			self.render(
 					pagesize=SIZES[o.get('size', "A4")],
 					outfile = o['filename'],
@@ -294,12 +306,3 @@ def loaddata(datafile):
 	f.close()
 	return data
 	
-def main(datafile):
-	maker = CardRenderer()
-	maker.readfile(datafile)
-	maker.run()
-
-if __name__ == "__main__":
-	parser = optparse.OptionParser()
-	(options, args) = parser.parse_args()
-	main(args[0])

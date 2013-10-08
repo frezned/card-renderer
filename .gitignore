@@ -10,5 +10,7 @@ download-cmyk
 gen
 upload
 output
+build
+working
 
 *.pyc
