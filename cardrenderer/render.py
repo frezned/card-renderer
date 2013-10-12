@@ -1,7 +1,7 @@
 from reportlab.lib.units import inch, mm
 from PIL import Image
 
-import urllib2
+import requests
 import os
 import sys
 import json
@@ -80,7 +80,7 @@ class GraphicTemplateItem(TemplateItem):
 			outfn = self.get_local_url(data)
 			if not os.path.exists(outfn):
 				print "Fetch", url
-				r = urllib2.urlopen(url)
+				r = requests.get(url, stream=True).raw
 				downf = tempfile.mktemp()
 				with open(downf, "wb") as f:
 					buf = r.read(128)
@@ -148,6 +148,17 @@ class Template:
 	def prepare(self, data):
 		for i in self.items:
 			i.prepare(data)
+
+	def use(self, urls, csv=False):
+		if type(urls) == str:
+			for c in loaddata(urls, csv):
+				self.cards.append(c)
+		else:
+			for u in urls:
+				self.use(u, csv)
+
+	def sort(self):
+		self.cards.sort(key=lambda x: x.get('title', x.get('name', None)))
 
 class CardRenderer:
 
@@ -271,20 +282,25 @@ class CardRenderer:
 			for c in d.get('cards', []):
 				template.cards.append(c)
 			if 'use' in d:
-				use = d['use']
-				if type(use) == str:
-					for c in loaddata(use):
-						template.cards.append(c)
-				else:
-					for u in use:
-						self.readfile(u)
+				template.use(d['use'])
+			if 'use-csv' in d:
+				template.use(d['use-csv'], True)
+			template.sort()
 		for c in data.get('cards', []):
 			template = self.keytemplates[c['type']]
 			template.cards.append(c)
+			template.sort()
 
-	def run(self):
+	def run(self, targets):
 		self.prepare_cards()
-		for o in self.outputs:
+		if not targets:
+			outputs = self.outputs
+		else:
+			if type(targets) == str:
+				targets = [targets]
+			outputs = [o for o in self.outputs if o['name'] in targets]
+
+		for o in outputs:
 			self.render(
 					pagesize=SIZES[o.get('size', "A4")],
 					outfile = o['filename'],
@@ -293,14 +309,14 @@ class CardRenderer:
 					drawbackground = o.get("background", False)
 				)
 
-def loaddata(datafile):
+def loaddata(datafile, force_csv=False):
 	if datafile.startswith("http://") or datafile.startswith("https://"):
 		print "Downloading", datafile
-		f = urllib2.urlopen(datafile)
+		f = requests.get(datafile, stream=True).raw
 	else:
 		print "Reading", datafile
 		f = open(datafile)
-	if datafile.endswith(".csv"):
+	if force_csv or datafile.endswith(".csv"):
 		# csv is always card definitions
 		reader = csv.DictReader(f)
 		data = []
@@ -312,12 +328,3 @@ def loaddata(datafile):
 	f.close()
 	return data
 	
-def main(datafile):
-	maker = CardRenderer()
-	maker.readfile(datafile)
-	maker.run()
-
-if __name__ == "__main__":
-	parser = optparse.OptionParser()
-	(options, args) = parser.parse_args()
-	main(args[0])
