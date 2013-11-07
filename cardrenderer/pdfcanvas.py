@@ -10,7 +10,7 @@ from reportlab.lib.units import mm
 
 class PDFCanvas:
 
-	def __init__(self, cardw, cardh, outfile, pagesize, margin, background, note):
+	def __init__(self, cardw, cardh, outfile, pagesize, margin, background, note, dpi=300):
 		self.outfile = outfile
 		self.drawbackground = background
 		self.pagesize = pagesize
@@ -29,6 +29,7 @@ class PDFCanvas:
 		self.note = note
 		self.guides = True
 		self.addStyle(dict(name='note', size=8, align='center'))
+		self.dpi = dpi
 
 	def drawImage(self, filename, x, y, width, height):
 		if os.path.exists(filename):

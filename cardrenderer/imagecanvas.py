@@ -1,6 +1,6 @@
 import tempfile, os
 
-from PIL import Image, ImageDraw, ImageFont
+import Image, ImageDraw, ImageFont
 
 class ImageCanvas:
 
@@ -14,6 +14,7 @@ class ImageCanvas:
 		self.filenamecb = filenamecb
 		self.styles = {}
 		self.imgheight = self.size[1]
+		self.dpi = 300
 
 	def drawImage(self, filename, x, y, width, height):
 		source = Image.open(filename).resize((int(width*self.scale), int(height*self.scale)))

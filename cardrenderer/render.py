@@ -1,5 +1,5 @@
 from reportlab.lib.units import inch, mm
-from PIL import Image
+import Image
 
 import requests
 import os
@@ -16,22 +16,20 @@ import progressbar
 
 from pdfcanvas import PDFCanvas
 from imagecanvas import ImageCanvas
+from imageresource import Resources
 
-# TODO: some of this stuff should be in the spec file
-DPI = 300
+res = Resources("res")
 
 CARD = (63*mm, 88*mm)
-SIZES = dict(
-	A4 = (210*mm, 297*mm),
-	LETTER = (11*inch, 8.5*inch),
-	CARD = ((63+6)*mm, (88+6)*mm)
-)
+SIZES = {}
+SIZES["A4"] = (210*mm, 297*mm)
+SIZES["A4-P"] = (210*mm, 297*mm)
+SIZES["A4-L"] = (297*mm, 210*mm)
+SIZES["LETTER"] = (11*inch, 8.5*inch)
+SIZES["LETTER-P"] = (8.5*inch, 11*inch)
+SIZES["LETTER-L"] = (11*inch, 8.5*inch)
+SIZES["CARD"] = ((63+6)*mm, (88+6)*mm)
 FRAME = (63*mm, 88*mm)
-
-import base64, hashlib
-def hash(string):
-	hasher = hashlib.sha1(string)
-	return base64.urlsafe_b64encode(hasher.digest()[0:10]).replace("=", "")
 
 class TemplateItem:
 
@@ -63,37 +61,13 @@ class GraphicTemplateItem(TemplateItem):
 		TemplateItem.__init__(self, builder, data)
 		self.filename = data.get('filename', "")
 
-	def get_local_url(self, data):
-		url = self.format(self.filename, data)
-		if url and url.startswith("http"):
-			pre, post = os.path.split(url)
-			filename = hash(pre) + "_" + post
-			return os.path.join("download", filename)
-		else:
-			return url
-
 	def prepare(self, data):
 		url = self.format(self.filename, data)
-		factor = 300 * (1 / inch)
-		size = (int(self.width*factor), int(self.height*factor))
-		if url and url.startswith("http"):
-			outfn = self.get_local_url(data)
-			if not os.path.exists(outfn):
-				print "Fetch", url
-				r = requests.get(url, stream=True).raw
-				downf = tempfile.mktemp()
-				with open(downf, "wb") as f:
-					buf = r.read(128)
-					while buf:
-						f.write(buf)
-						buf = r.read(128)
-				r.close()
-				art = Image.open(downf).resize(size, Image.ANTIALIAS)
-				print outfn
-				art.save(outfn)
+		res.markneeded(url, self.width, self.height)
 
 	def render(self, canvas, data):
-		filename = self.get_local_url(data)
+		url = self.format(self.filename, data)
+		filename = res.getfilename(url, canvas.dpi)
 		if os.path.exists(filename):
 			canvas.drawImage(filename, self.x, self.y, self.width, self.height)
 
@@ -142,7 +116,7 @@ class Template:
 				self.use(u, csv)
 
 	def sort(self):
-		self.cards.sort(key=lambda x: x.get('title', x.get('name', None)))
+		self.cards.sort(key=lambda x: x.get('title', x.get('name', None)) or 'zzzzzzzzzzzzzz')
 
 class CardRenderer:
 
@@ -199,10 +173,6 @@ class CardRenderer:
 
 	def prepare_cards(self):
 		# ensure the destination folders exist
-		def mkdir(n):
-			if not os.path.exists(n): os.mkdir(n)
-		mkdir("download")
-		mkdir("tif")
 		# prepare the cards
 		print "Preparing card art..."
 		def prepare(t, c):
@@ -210,10 +180,16 @@ class CardRenderer:
 		self.all_cards_progress(prepare)
 		self.page = False
 
-	def render(self, pagesize, outfile, note='', guides=True, drawbackground=False):
+	def render(self, pagesize, outfile, note='', guides=True, drawbackground=False, dpi=300):
 		if outfile.endswith(".pdf"):
 			filename = self.format(outfile).replace(" ", "")
-			self.canvas = PDFCanvas(self.cardw, self.cardh, filename, pagesize, (0,0), drawbackground, self.format(note))
+			self.canvas = PDFCanvas(
+					self.cardw, self.cardh, 
+					filename, pagesize, 
+					(0.25*inch,0.25*inch), 
+					drawbackground, 
+					self.format(note),
+					dpi=dpi)
 		else:
 			self.canvas = ImageCanvas(self.cardw, self.cardh, outfile, self.format)
 		for s in self.styles:
@@ -221,6 +197,7 @@ class CardRenderer:
 		self.notefmt = note
 		self.guides = guides
 		self.drawbackground = drawbackground
+		res.prepare(dpi)
 		print "Rendering to {out}...".format(out=outfile)
 		def render(t, c):
 			for i in range(int(c.get('copies', 1))):
@@ -283,9 +260,13 @@ class CardRenderer:
 			outputs = [o for o in self.outputs if o['name'] in targets]
 
 		for o in outputs:
+			size = o.get('size', "A4")
+			if type(size) == str:
+				size = SIZES[size]
 			self.render(
-					pagesize=SIZES[o.get('size', "A4")],
+					pagesize=size,
 					outfile = o['filename'],
+					dpi = o.get("dpi", 300),
 					note = o.get("note", ""),
 					guides = o.get("guides", True),
 					drawbackground = o.get("background", False)
