@@ -82,22 +82,38 @@ class TextTemplateItem(TemplateItem):
 		string = self.format(self.textformat, data)
 		canvas.renderText(string, self.style, self.x, self.y, self.width, self.height)
 
+class FunctionTemplateItem(TemplateItem):
+
+	def __init__(self, builder, data):
+		TemplateItem.__init__(self, builder, data)
+		self.callback = data.get('callback', None)
+
+	def render(self, canvas, data):
+		if self.callback:
+			self.callback(self, canvas, data)
+
 class Template:
 
 	def __init__(self, data, builder):
+		self.builder = builder
 		self.name = data.get('name', "")
 		self.key = data.get('key', self.name)
 		self.items = []
 		for e in data.get('elements', []):
-			if type(e) == str:
-				other = builder.templates[e]
-				for i in other.items:
-					self.items.append(i)
-			elif 'filename' in e:
-				self.items.append(GraphicTemplateItem(builder, e))
-			else:
-				self.items.append(TextTemplateItem(builder, e))
+			self.element(**e)
 		self.cards = []
+
+	def element(self, *args, **kwargs):
+		if len(args) == 1 and type(args[0]) == str and len(kwargs)==0:
+			other = self.builder.templates[args[0]]
+			for i in other.items:
+				self.items.append(i)
+		elif 'callback' in kwargs:
+			self.items.append(FunctionTemplateItem(self.builder, kwargs))
+		elif 'filename' in kwargs:
+			self.items.append(GraphicTemplateItem(self.builder, kwargs))
+		else:
+			self.items.append(TextTemplateItem(self.builder, kwargs))
 
 	def render(self, canvas, data):
 		for i in self.items:
@@ -107,10 +123,13 @@ class Template:
 		for i in self.items:
 			i.prepare(data)
 
+	def card(self, **card):
+		self.cards.append(card)
+
 	def use(self, urls, csv=False):
 		if type(urls) == str:
 			for c in loaddata(urls, csv):
-				self.cards.append(c)
+				self.card(**c)
 		else:
 			for u in urls:
 				self.use(u, csv)
@@ -149,12 +168,20 @@ class CardRenderer:
 
 	def parse_templates(self, data):
 		for sd in data.get('styles', []):
-			self.styles[sd.get('name', "")] = sd
+			self.style(sd.get('name', ""), **sd)
 
 		for td in data.get('templates', []):
-			t = Template(td, self)
-			self.templates[t.name] = t
-			self.keytemplates[t.key] = t
+			template(**td)
+
+	def style(self, name, **descriptor):
+		descriptor["name"] = name
+		self.styles[name] = descriptor
+
+	def template(self, **kwargs):
+		t = Template(kwargs, self)
+		self.templates[t.name] = t
+		self.keytemplates[t.key] = t
+		return t
 
 	def all_cards_progress(self, function):
 		i = 0
@@ -209,37 +236,40 @@ class CardRenderer:
 		if filename not in self.readfiles:
 			self.readfiles.add(filename)
 			data = loaddata(filename)
-			self.parse_data(data)
-			self.parse_use(data)
+			self.parse_data(**data)
+			self.parse_use(**data)
 			self.parse_output(data)
 			self.parse_templates(data)
 			self.parse_decks(data)
 
-	def parse_data(self, data):
-		if 'cardwidth' in data:
-			self.cardw = data.get('cardwidth') * mm
-		if 'cardheight' in data:
-			self.cardh = data.get('cardheight') * mm
-		self.data.update(data)
+	def parse_data(self, cardwidth=None, cardheight=None, **kwargs):
+		if cardwidth:
+			self.cardw = cardwidth * mm
+		if cardheight:
+			self.cardh = cardheight * mm
+		self.data.update(kwargs)
 
-	def parse_use(self, data):
-		if 'use' in data:
-			use = data['use']
-			if type(use) == str:
-				self.readfile(use)
+	def parse_use(self, filename=None, **kwargs):
+		if filename:
+			if type(filename) == str:
+				self.readfile(filename)
 			else:
-				for u in use:
+				for u in filename:
 					self.readfile(u)
 
 	def parse_output(self, data):
 		for o in data.get('output', []):
-			self.outputs.append(o)
+			self.output(**o)
+
+	def output(self, filename, **kwargs):
+		kwargs['filename'] = filename
+		self.outputs.append(kwargs)
 
 	def parse_decks(self, data):
 		for d in data.get('decks', []):
 			template = self.templates[d['template']]
 			for c in d.get('cards', []):
-				template.cards.append(c)
+				template.card(**c)
 			if 'use' in d:
 				template.use(d['use'])
 			if 'use-csv' in d:
@@ -247,10 +277,10 @@ class CardRenderer:
 			template.sort()
 		for c in data.get('cards', []):
 			template = self.keytemplates[c['type']]
-			template.cards.append(c)
+			template.card(**c)
 			template.sort()
 
-	def run(self, targets):
+	def run(self, targets=None):
 		self.prepare_cards()
 		if not targets:
 			outputs = self.outputs
