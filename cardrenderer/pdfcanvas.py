@@ -8,32 +8,41 @@ from reportlab.lib.styles import ParagraphStyle
 from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
 from reportlab.lib.units import mm
 
+def tomm(num):
+	if type(num) in (float, int):
+		return num * mm
+	else:
+		return tuple([x * mm for x in num])
+
 class PDFCanvas:
 
-	def __init__(self, cardw, cardh, outfile, pagesize, margin, background, note, dpi=300):
+	def __init__(self, res, cardw, cardh, outfile, pagesize, margin, background, note, dpi=300):
 		self.outfile = outfile
 		self.drawbackground = background
-		self.pagesize = pagesize
+		self.pagesize = tomm(pagesize)
+		self.margin = tomm(margin)
 		self.x = 0
 		self.y = 0
-		self.cardw = cardw
-		self.cardh = cardh
-		self.columns = int((pagesize[0]-margin[0]*2) / self.cardw)
-		self.rows = int((pagesize[1]-margin[1]*2) / self.cardh)
-		self.offsetx = (pagesize[0] - self.columns*self.cardw) * 0.5
-		self.offsety = (pagesize[1] - self.cardh) - (pagesize[1] - self.rows*self.cardh) * 0.5
+		self.cardw = tomm(cardw)
+		self.cardh = tomm(cardh)
+		self.columns = int((self.pagesize[0]-self.margin[0]*2) / self.cardw)
+		self.rows = int((self.pagesize[1]-self.margin[1]*2) / self.cardh)
+		self.offsetx = (self.pagesize[0] - self.columns*self.cardw) * 0.5
+		self.offsety = (self.pagesize[1] - self.cardh) - (self.pagesize[1] - self.rows*self.cardh) * 0.5
 		self.tempfile = tempfile.mktemp()
-		self.canvas = canvas.Canvas(self.tempfile, pagesize=(pagesize[0], pagesize[1]))
+		self.canvas = canvas.Canvas(self.tempfile, pagesize=self.pagesize)
 		self.styles = {}
 		self.page = False
 		self.note = note
 		self.guides = True
 		self.addStyle(dict(name='note', size=8, align='center'))
 		self.dpi = dpi
+		self.res = res
 
 	def drawImage(self, filename, x, y, width, height):
+		filename = self.res.getfilename(filename, self.dpi)
 		if os.path.exists(filename):
-			self.canvas.drawImage(filename, x, y, width, height)
+			self.canvas.drawImage(filename, tomm(x), tomm(y), tomm(width), tomm(height))
 
 	def addStyle(self, data):
 		name = data.get('name', "")
@@ -58,11 +67,11 @@ class PDFCanvas:
 		style = self.styles[stylename]
 		for l in lines:
 			p = Paragraph(l, style)
-			tx, ty = p.wrap(width, height)
+			tx, ty = p.wrap(tomm(width), tomm(height))
 		#	height += ty
 		#	paras.append((p, height))
 			voffset = ty*0.5*len(lines) - ty*i
-			p.drawOn(self.canvas, x, y + voffset)
+			p.drawOn(self.canvas, tomm(x), tomm(y) + voffset)
 			i += 1
 		#offset = height/2
 		#for p, h in paras:

@@ -4,7 +4,7 @@ import Image, ImageDraw, ImageFont
 
 class ImageCanvas:
 
-	def __init__(self, cardw, cardh, outfmt, filenamecb):
+	def __init__(self, res, cardw, cardh, outfmt, filenamecb):
 		self.card = None
 		self.image = None
 		self.scale = 750.0 / cardw
@@ -15,11 +15,14 @@ class ImageCanvas:
 		self.styles = {}
 		self.imgheight = self.size[1]
 		self.dpi = 300
+		self.res = res
 
 	def drawImage(self, filename, x, y, width, height):
-		source = Image.open(filename).resize((int(width*self.scale), int(height*self.scale)))
-		y = self.imgheight-(height*self.scale)-(y*self.scale)
-		self.image.paste(source, (int(x*self.scale), int(y)))
+		filename = self.res.getfilename(filename, self.dpi)
+		if os.path.exists(filename):
+			source = Image.open(filename).resize((int(width*self.scale), int(height*self.scale)))
+			y = self.imgheight-(height*self.scale)-(y*self.scale)
+			self.image.paste(source, (int(x*self.scale), int(y)))
 
 	def addStyle(self, data):
 		s = {}

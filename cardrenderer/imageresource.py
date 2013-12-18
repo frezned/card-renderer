@@ -8,14 +8,19 @@ def hash(string):
 	hasher = hashlib.sha1(string)
 	return base64.urlsafe_b64encode(hasher.digest()[0:10]).replace("=", "")
 
+def mkdir(n):
+	if not os.path.exists(n): os.mkdir(n)
+
 class ImageResource:
 
 	def __init__(self, url):
 		self.url = url
+		self.files = {}
 		if url:
 			if url.startswith("http"):
 				pre, post = os.path.split(url)
 				self.localfile = "{0}_{1}".format(hash(pre), post)
+				mkdir("download")
 				self.downfile = "download/" + self.localfile
 			else:
 				self.localfile = self.url
@@ -34,23 +39,42 @@ class ImageResource:
 						buf = r.read(128)
 				r.close()
 				os.rename(tempfn, self.downfile)
+			else:
+				print "Doesn't exist: ", self.url
 
 	def getfilename(self, dpi):
-		return "{0}dpi/{1}".format(dpi, self.localfile)
+		if dpi not in self.files:
+			return ""
+		else:
+			return self.files[dpi]
 
 	def prepare(self, dpi, w, h):
-		outfn = self.getfilename(dpi)
-		if not os.path.exists(outfn):
+		if dpi not in self.files and os.path.exists(self.downfile):
+			print "Scaling {0} for {1}dpi...".format(self.localfile, dpi),
+			outfn = "{0}dpi/{1}".format(dpi, self.localfile)
 			factor = dpi / inch
 			size = (int(factor * w), int(factor * h))
-			img = Image.open(self.downfile).resize(size, Image.ANTIALIAS)
-			img.save(outfn)
+			img = Image.open(self.downfile)
+			if size[0] < img.size[0] and size[1] < img.size[1]:
+				mkdir("{0}dpi".format(dpi))
+				img.resize(size, Image.ANTIALIAS).save(outfn)
+				self.files[dpi] = outfn
+				print "OK"
+			else:
+				self.files[dpi] = self.downfile
+				print "not needed."
 	
 def pool_fetch(r):
-	r.fetch()
+	try:
+		r.fetch()
+	except Exception as e:
+		print e
 
 def pool_prepare(n):
-	n[0].prepare(*n[1:])
+	try:
+		n[0].prepare(*n[1:])
+	except Exception as e:
+		print e
 
 class Resources:
 
@@ -66,13 +90,11 @@ class Resources:
 			self.needed.append((self.images[url], w, h))
 
 	def prepare(self, dpi):
-		def mkdir(n):
-			if not os.path.exists(n): os.mkdir(n)
-		mkdir("download")
-		pool = multiprocessing.Pool(processes=10)
-		pool.map(pool_fetch, self.images.values())
-		mkdir("{0}dpi".format(dpi))
-		pool.map(pool_prepare, [(n[0], dpi, n[1], n[2]) for n in self.needed])
+		# pool = multiprocessing.Pool(processes=10)
+		print "Fetching all images..."
+		map(pool_fetch, self.images.values())
+		print "Preparing all images..."
+		map(pool_prepare, [(n[0], dpi, n[1], n[2]) for n in self.needed])
 
 	def getfilename(self, url, dpi):
 		if url:

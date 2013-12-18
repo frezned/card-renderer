@@ -1,4 +1,3 @@
-from reportlab.lib.units import inch, mm
 import Image
 
 import requests
@@ -16,34 +15,35 @@ import progressbar
 
 from pdfcanvas import PDFCanvas
 from imagecanvas import ImageCanvas
+from preparecanvas import PrepareCanvas
 from imageresource import Resources
 
-res = Resources("res")
+inch = 25.4
 
-CARD = (63*mm, 88*mm)
+CARD = (63, 88)
 SIZES = {}
-SIZES["A4"] = (210*mm, 297*mm)
-SIZES["A4-P"] = (210*mm, 297*mm)
-SIZES["A4-L"] = (297*mm, 210*mm)
+SIZES["A4"] = (210, 297)
+SIZES["A4-P"] = (210, 297)
+SIZES["A4-L"] = (297, 210)
 SIZES["LETTER"] = (11*inch, 8.5*inch)
 SIZES["LETTER-P"] = (8.5*inch, 11*inch)
 SIZES["LETTER-L"] = (11*inch, 8.5*inch)
-SIZES["CARD"] = ((63+6)*mm, (88+6)*mm)
-FRAME = (63*mm, 88*mm)
+SIZES["CARD"] = ((63+6), (88+6))
+FRAME = (63, 88)
 
 class TemplateItem:
 
 	def __init__(self, builder, data):
 		self.builder = builder
 		self.name = data.get('name', "")
-		self.width = data.get('width', 0)*mm or builder.cardw
-		self.height = data.get('height', 0)*mm or builder.cardh
+		self.width = data.get('width', 0) or builder.cardw
+		self.height = data.get('height', 0) or builder.cardh
 		def coordormid(key, ref):
 			val = data.get(key, 0)
 			if val == "mid":
 				return ref
 			else:
-				return val * mm
+				return val
 		self.x = coordormid('x', 0.5*(builder.cardw-self.width))
 		self.y = coordormid('y', 0.5*(builder.cardh-self.height))
 		if data.get('hcenter', False):
@@ -61,15 +61,9 @@ class GraphicTemplateItem(TemplateItem):
 		TemplateItem.__init__(self, builder, data)
 		self.filename = data.get('filename', "")
 
-	def prepare(self, data):
-		url = self.format(self.filename, data)
-		res.markneeded(url, self.width, self.height)
-
 	def render(self, canvas, data):
 		url = self.format(self.filename, data)
-		filename = res.getfilename(url, canvas.dpi)
-		if os.path.exists(filename):
-			canvas.drawImage(filename, self.x, self.y, self.width, self.height)
+		canvas.drawImage(url, self.x, self.y, self.width, self.height)
 
 class TextTemplateItem(TemplateItem):
 
@@ -154,6 +148,7 @@ class CardRenderer:
 				date=datetime.datetime.now().strftime("%d-%b-%Y")
 				)
 		self.styles['note'] = dict(align='center', size=9)
+		self.resources = Resources("res")
 
 	def format(self, fmtstring, data={}):
 		merged_data = {}
@@ -202,8 +197,9 @@ class CardRenderer:
 		# ensure the destination folders exist
 		# prepare the cards
 		print "Preparing card art..."
+		preparecanvas = PrepareCanvas(self.resources)
 		def prepare(t, c):
-			t.prepare(c)
+			t.render(preparecanvas, c)
 		self.all_cards_progress(prepare)
 		self.page = False
 
@@ -211,6 +207,7 @@ class CardRenderer:
 		if outfile.endswith(".pdf"):
 			filename = self.format(outfile).replace(" ", "")
 			self.canvas = PDFCanvas(
+					self.resources,
 					self.cardw, self.cardh, 
 					filename, pagesize, 
 					(0.25*inch,0.25*inch), 
@@ -218,13 +215,13 @@ class CardRenderer:
 					self.format(note),
 					dpi=dpi)
 		else:
-			self.canvas = ImageCanvas(self.cardw, self.cardh, outfile, self.format)
+			self.canvas = ImageCanvas(self.resources, self.cardw, self.cardh, outfile, self.format)
 		for s in self.styles:
 			self.canvas.addStyle(self.styles[s])
 		self.notefmt = note
 		self.guides = guides
 		self.drawbackground = drawbackground
-		res.prepare(dpi)
+		self.resources.prepare(dpi)
 		print "Rendering to {out}...".format(out=outfile)
 		def render(t, c):
 			for i in range(int(c.get('copies', 1))):
@@ -244,9 +241,9 @@ class CardRenderer:
 
 	def parse_data(self, cardwidth=None, cardheight=None, **kwargs):
 		if cardwidth:
-			self.cardw = cardwidth * mm
+			self.cardw = cardwidth
 		if cardheight:
-			self.cardh = cardheight * mm
+			self.cardh = cardheight
 		self.data.update(kwargs)
 
 	def parse_use(self, filename=None, **kwargs):
