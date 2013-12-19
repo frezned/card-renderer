@@ -1,4 +1,4 @@
-import Image
+from PIL import Image
 import requests
 import os, tempfile, multiprocessing
 from reportlab.lib.units import inch, mm

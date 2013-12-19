@@ -151,7 +151,7 @@ class PDFCanvas:
 				if os.path.exists(outfile):
 					os.unlink(outfile)
 				os.rename(self.tempfile, outfile)
-				return
+				return [outfile]
 			except WindowsError as e:
 				amt += 1
 				outfile = "{0}_{1}{2}".format(fn, amt, ext)

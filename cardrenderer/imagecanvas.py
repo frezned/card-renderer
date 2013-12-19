@@ -1,6 +1,6 @@
 import tempfile, os
 
-import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFont
 
 class ImageCanvas:
 
@@ -9,20 +9,21 @@ class ImageCanvas:
 		self.image = None
 		self.scale = 750.0 / cardw
 		self.size = (int(cardw*self.scale), int(cardh*self.scale))
-		self.finalsize = (825, 1125)
+		self.finalsize = self.size #(825, 1125)
 		self.outfmt = outfmt
 		self.filenamecb = filenamecb
 		self.styles = {}
 		self.imgheight = self.size[1]
 		self.dpi = 300
 		self.res = res
+		self.renderedcards = []
 
 	def drawImage(self, filename, x, y, width, height):
 		filename = self.res.getfilename(filename, self.dpi)
 		if os.path.exists(filename):
 			source = Image.open(filename).resize((int(width*self.scale), int(height*self.scale)))
 			y = self.imgheight-(height*self.scale)-(y*self.scale)
-			self.image.paste(source, (int(x*self.scale), int(y)))
+			self.image.paste(source, (int(x*self.scale), int(y)), source)
 
 	def addStyle(self, data):
 		s = {}
@@ -57,14 +58,17 @@ class ImageCanvas:
 		self.image = Image.new("RGBA", self.size)
 
 	def endCard(self):
-		outf = self.filenamecb(self.outfmt, self.card)
+		fndata = dict(self.card)
+		fndata['cardidx'] = len(self.renderedcards)
+		outf = self.filenamecb(self.outfmt, fndata)
 		finalimage = Image.new("RGBA", self.finalsize)
 		finalimage.paste((0,0,0))
 		def getpad(idx):
 			return int(0.5*(self.finalsize[idx] - self.size[idx]))
 		finalimage.paste(self.image, (getpad(0), getpad(1)))
-		finalimage.save(outf)
+		finalimage.save(outf, format="PNG")
+		self.renderedcards.append(outf)
 
 	def finish(self):
-		pass
+		return self.renderedcards
 

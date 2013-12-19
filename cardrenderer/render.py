@@ -1,5 +1,3 @@
-import Image
-
 import requests
 import os
 import sys
@@ -227,7 +225,7 @@ class CardRenderer:
 			for i in range(int(c.get('copies', 1))):
 				self.render_card(t, c)
 		self.all_cards_progress(render)
-		self.canvas.finish()
+		return self.canvas.finish()
 
 	def readfile(self, filename):
 		if filename not in self.readfiles:
@@ -286,11 +284,12 @@ class CardRenderer:
 				targets = [targets]
 			outputs = [o for o in self.outputs if o['name'] in targets]
 
+		outfiles = []
 		for o in outputs:
 			size = o.get('size', "A4")
 			if type(size) == str:
 				size = SIZES[size]
-			self.render(
+			outfiles += self.render(
 					pagesize=size,
 					outfile = o['filename'],
 					dpi = o.get("dpi", 300),
@@ -298,6 +297,7 @@ class CardRenderer:
 					guides = o.get("guides", True),
 					drawbackground = o.get("background", False)
 				)
+		return outfiles
 
 def loaddata(datafile, force_csv=False):
 	if datafile.startswith("http://") or datafile.startswith("https://"):
