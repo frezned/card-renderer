@@ -125,6 +125,8 @@ class DrawTemplateItem(TemplateItem):
 class Template:
 
 	def __init__(self, data, builder):
+		self.builder = builder
+		self.data = data
 		self.name = data.get('name', "")
 		self.key = data.get('key', self.name)
 		self.items = []
@@ -158,7 +160,9 @@ class Template:
 				self.use(u, csv)
 
 	def sort(self):
-		self.cards.sort(key=lambda x: x.get('title', x.get('name', None)))
+		sort = self.data.get("sort", None)
+		if sort:
+			self.cards.sort(key=lambda x: self.builder.format(sort, x))
 
 class CardRenderer:
 
