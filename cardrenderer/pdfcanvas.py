@@ -8,72 +8,41 @@ from reportlab.lib.styles import ParagraphStyle
 from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
 from reportlab.lib.units import mm
 
+def tomm(num):
+	if type(num) in (float, int):
+		return num * mm
+	else:
+		return tuple([x * mm for x in num])
+
 class PDFCanvas:
 
-	def __init__(self, cardw, cardh, outfile, pagesize, margin, background, note, guides):
+	def __init__(self, res, cardw, cardh, outfile, pagesize, margin, background, note, dpi=300):
 		self.outfile = outfile
 		self.drawbackground = background
-		self.pagesize = pagesize
+		self.pagesize = tomm(pagesize)
+		self.margin = tomm(margin)
 		self.x = 0
 		self.y = 0
-		self.cardw = cardw
-		self.cardh = cardh
-		self.columns = int((pagesize[0]-margin[0]*2) / self.cardw)
-		self.rows = int((pagesize[1]-margin[1]*2) / self.cardh)
-		self.offsetx = (pagesize[0] - self.columns*self.cardw) * 0.5
-		self.offsety = (pagesize[1] - self.cardh) - (pagesize[1] - self.rows*self.cardh) * 0.5
+		self.cardw = tomm(cardw)
+		self.cardh = tomm(cardh)
+		self.columns = int((self.pagesize[0]-self.margin[0]*2) / self.cardw)
+		self.rows = int((self.pagesize[1]-self.margin[1]*2) / self.cardh)
+		self.offsetx = (self.pagesize[0] - self.columns*self.cardw) * 0.5
+		self.offsety = (self.pagesize[1] - self.cardh) - (self.pagesize[1] - self.rows*self.cardh) * 0.5
 		self.tempfile = tempfile.mktemp()
-		self.canvas = canvas.Canvas(self.tempfile, pagesize=(pagesize[0], pagesize[1]))
+		self.canvas = canvas.Canvas(self.tempfile, pagesize=self.pagesize)
 		self.styles = {}
 		self.page = False
 		self.note = note
-		self.guides = guides
+		self.guides = True
 		self.addStyle(dict(name='note', size=8, align='center'))
+		self.dpi = dpi
+		self.res = res
 
 	def drawImage(self, filename, x, y, width, height):
+		filename = self.res.getfilename(filename, self.dpi)
 		if os.path.exists(filename):
-			self.canvas.drawImage(filename, x, y, width, height)
-
-	def setColor(self, stroke, colorstring):
-		if not colorstring:
-			return
-		print colorstring
-		if colorstring.startswith("#"):
-			rgb = True
-			colorstring = colorstring[1:]
-			if len(colorstring) == 3:
-				r = int(colorstring[0], 16)/15.0
-				g = int(colorstring[1], 16)/15.0
-				b = int(colorstring[2], 16)/15.0
-				a = 255/255.0
-			elif len(colorstring) == 6:
-				r = int(colorstring[0:2], 16)/255.0
-				g = int(colorstring[2:4], 16)/255.0
-				b = int(colorstring[4:6], 16)/255.0
-				a = 255/255.0
-			elif len(colorstring) == 8:
-				r = int(colorstring[0:1], 16)/255.0
-				g = int(colorstring[2:3], 16)/255.0
-				b = int(colorstring[4:5], 16)/255.0
-				a = int(colorstring[6:7], 16)/255.0
-		elif colorstring.startswith("rgb("):
-			rgb = True
-			pass
-		elif colorstring.startswith("cmyk("):
-			rgb = False
-			pass
-		if stroke:
-			self.canvas.setStrokeColor((r, g, b))	
-		else:
-			self.canvas.setFillColor((r, g, b))	
-
-	def drawShape(self, shape, stroke, fill, x, y, width, height):
-		self.setColor(False, fill)
-		self.setColor(True, stroke)
-		if shape == "circle":
-			self.canvas.ellipse(x, y, x+width, x+height, fill=fill and 1 or 0, stroke=stroke and 1 or 0)
-		elif shape == "rect":
-			self.canvas.rect(x, y, width, height, fill=fill and 1 or 0, stroke=stroke and 1 or 0)
+			self.canvas.drawImage(filename, tomm(x), tomm(y), tomm(width), tomm(height))
 
 	def addStyle(self, data):
 		name = data.get('name', "")
@@ -98,11 +67,11 @@ class PDFCanvas:
 		style = self.styles[stylename]
 		for l in lines:
 			p = Paragraph(l, style)
-			tx, ty = p.wrap(width, height)
+			tx, ty = p.wrap(tomm(width), tomm(height))
 		#	height += ty
 		#	paras.append((p, height))
 			voffset = ty*0.5*len(lines) - ty*i
-			p.drawOn(self.canvas, x, y + voffset)
+			p.drawOn(self.canvas, tomm(x), tomm(y) + voffset)
 			i += 1
 		#offset = height/2
 		#for p, h in paras:
@@ -182,7 +151,7 @@ class PDFCanvas:
 				if os.path.exists(outfile):
 					os.unlink(outfile)
 				os.rename(self.tempfile, outfile)
-				return
+				return [outfile]
 			except WindowsError as e:
 				amt += 1
 				outfile = "{0}_{1}{2}".format(fn, amt, ext)

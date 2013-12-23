@@ -1,6 +1,3 @@
-from reportlab.lib.units import inch, mm
-from PIL import Image
-
 import requests
 import os
 import sys
@@ -16,36 +13,35 @@ import progressbar
 
 from pdfcanvas import PDFCanvas
 from imagecanvas import ImageCanvas
+from preparecanvas import PrepareCanvas
+from imageresource import Resources
 
-# TODO: some of this stuff should be in the spec file
-DPI = 300
+inch = 25.4
 
-CARD = (63*mm, 88*mm)
-SIZES = dict(
-	A4 = (210*mm, 297*mm),
-	LETTER = (11*inch, 8.5*inch),
-	CARD = ((63+6)*mm, (88+6)*mm)
-)
-FRAME = (63*mm, 88*mm)
-
-import base64, hashlib
-def hash(string):
-	hasher = hashlib.sha1(string)
-	return base64.urlsafe_b64encode(hasher.digest()[0:10]).replace("=", "")
+CARD = (63, 88)
+SIZES = {}
+SIZES["A4"] = (210, 297)
+SIZES["A4-P"] = (210, 297)
+SIZES["A4-L"] = (297, 210)
+SIZES["LETTER"] = (11*inch, 8.5*inch)
+SIZES["LETTER-P"] = (8.5*inch, 11*inch)
+SIZES["LETTER-L"] = (11*inch, 8.5*inch)
+SIZES["CARD"] = ((63+6), (88+6))
+FRAME = (63, 88)
 
 class TemplateItem:
 
 	def __init__(self, builder, data):
 		self.builder = builder
 		self.name = data.get('name', "")
-		self.width = data.get('width', 0)*mm or builder.cardw
-		self.height = data.get('height', 0)*mm or builder.cardh
+		self.width = data.get('width', 0) or builder.cardw
+		self.height = data.get('height', 0) or builder.cardh
 		def coordormid(key, ref):
 			val = data.get(key, 0)
 			if val == "mid":
 				return ref
 			else:
-				return val * mm
+				return val
 		self.x = coordormid('x', 0.5*(builder.cardw-self.width))
 		self.y = coordormid('y', 0.5*(builder.cardh-self.height))
 		if data.get('hcenter', False):
@@ -63,39 +59,9 @@ class GraphicTemplateItem(TemplateItem):
 		TemplateItem.__init__(self, builder, data)
 		self.filename = data.get('filename', "")
 
-	def get_local_url(self, data):
-		url = self.format(self.filename, data)
-		if url and url.startswith("http"):
-			pre, post = os.path.split(url)
-			filename = hash(pre) + "_" + post
-			return os.path.join("download", filename)
-		else:
-			return url
-
-	def prepare(self, data):
-		url = self.format(self.filename, data)
-		factor = 300 * (1 / inch)
-		size = (int(self.width*factor), int(self.height*factor))
-		if url and url.startswith("http"):
-			outfn = self.get_local_url(data)
-			if not os.path.exists(outfn):
-				print "Fetch", url
-				r = requests.get(url, stream=True).raw
-				downf = tempfile.mktemp()
-				with open(downf, "wb") as f:
-					buf = r.read(128)
-					while buf:
-						f.write(buf)
-						buf = r.read(128)
-				r.close()
-				art = Image.open(downf).resize(size, Image.ANTIALIAS)
-				print outfn
-				art.save(outfn)
-
 	def render(self, canvas, data):
-		filename = self.get_local_url(data)
-		if os.path.exists(filename):
-			canvas.drawImage(filename, self.x, self.y, self.width, self.height)
+		url = self.format(self.filename, data)
+		canvas.drawImage(url, self.x, self.y, self.width, self.height)
 
 class TextTemplateItem(TemplateItem):
 
@@ -108,40 +74,38 @@ class TextTemplateItem(TemplateItem):
 		string = self.format(self.textformat, data)
 		canvas.renderText(string, self.style, self.x, self.y, self.width, self.height)
 
-class DrawTemplateItem(TemplateItem):
+class FunctionTemplateItem(TemplateItem):
 
 	def __init__(self, builder, data):
 		TemplateItem.__init__(self, builder, data)
-		self.shape = data.get('shape', 'square')
-		self.stroke = data.get('stroke', '')
-		self.fill = data.get('fill', '')
+		self.callback = data.get('callback', None)
 
 	def render(self, canvas, data):
-		print self.fill, self.stroke, data
-		stroke = self.format(self.stroke, data)
-		fill = self.format(self.fill, data)
-		canvas.drawShape(self.shape, stroke, fill, self.x, self.y, self.width, self.height)
+		if self.callback:
+			self.callback(self, canvas, data)
 
 class Template:
 
 	def __init__(self, data, builder):
 		self.builder = builder
-		self.data = data
 		self.name = data.get('name', "")
 		self.key = data.get('key', self.name)
 		self.items = []
 		for e in data.get('elements', []):
-			if type(e) == str:
-				other = builder.templates[e]
-				for i in other.items:
-					self.items.append(i)
-			elif 'filename' in e:
-				self.items.append(GraphicTemplateItem(builder, e))
-			elif 'shape' in e:
-				self.items.append(DrawTemplateItem(builder, e))
-			else:
-				self.items.append(TextTemplateItem(builder, e))
+			self.element(**e)
 		self.cards = []
+
+	def element(self, *args, **kwargs):
+		if len(args) == 1 and type(args[0]) == str and len(kwargs)==0:
+			other = self.builder.templates[args[0]]
+			for i in other.items:
+				self.items.append(i)
+		elif 'callback' in kwargs:
+			self.items.append(FunctionTemplateItem(self.builder, kwargs))
+		elif 'filename' in kwargs:
+			self.items.append(GraphicTemplateItem(self.builder, kwargs))
+		else:
+			self.items.append(TextTemplateItem(self.builder, kwargs))
 
 	def render(self, canvas, data):
 		for i in self.items:
@@ -151,18 +115,19 @@ class Template:
 		for i in self.items:
 			i.prepare(data)
 
+	def card(self, **card):
+		self.cards.append(card)
+
 	def use(self, urls, csv=False):
 		if type(urls) == str:
 			for c in loaddata(urls, csv):
-				self.cards.append(c)
+				self.card(**c)
 		else:
 			for u in urls:
 				self.use(u, csv)
 
 	def sort(self):
-		sort = self.data.get("sort", None)
-		if sort:
-			self.cards.sort(key=lambda x: self.builder.format(sort, x))
+		self.cards.sort(key=lambda x: x.get('title', x.get('name', None)) or 'zzzzzzzzzzzzzz')
 
 class CardRenderer:
 
@@ -181,15 +146,13 @@ class CardRenderer:
 				date=datetime.datetime.now().strftime("%d-%b-%Y")
 				)
 		self.styles['note'] = dict(align='center', size=9)
+		self.resources = Resources("res")
 
 	def format(self, fmtstring, data={}):
-		try:
-			merged_data = {}
-			merged_data.update(self.data)
-			merged_data.update(data)
-			return Formatter().vformat(fmtstring, [], merged_data)
-		except KeyError as e:
-			raise Exception(fmtstring)
+		merged_data = {}
+		merged_data.update(self.data)
+		merged_data.update(data)
+		return Formatter().vformat(fmtstring, [], merged_data)
 
 	def render_card(self, template, card):
 		self.canvas.beginCard(card)
@@ -198,12 +161,20 @@ class CardRenderer:
 
 	def parse_templates(self, data):
 		for sd in data.get('styles', []):
-			self.styles[sd.get('name', "")] = sd
+			self.style(sd.get('name', ""), **sd)
 
 		for td in data.get('templates', []):
-			t = Template(td, self)
-			self.templates[t.name] = t
-			self.keytemplates[t.key] = t
+			template(**td)
+
+	def style(self, name, **descriptor):
+		descriptor["name"] = name
+		self.styles[name] = descriptor
+
+	def template(self, **kwargs):
+		t = Template(kwargs, self)
+		self.templates[t.name] = t
+		self.keytemplates[t.key] = t
+		return t
 
 	def all_cards_progress(self, function):
 		i = 0
@@ -222,69 +193,78 @@ class CardRenderer:
 
 	def prepare_cards(self):
 		# ensure the destination folders exist
-		def mkdir(n):
-			if not os.path.exists(n): os.mkdir(n)
-		mkdir("download")
-		mkdir("tif")
 		# prepare the cards
 		print "Preparing card art..."
+		preparecanvas = PrepareCanvas(self.resources)
 		def prepare(t, c):
-			t.prepare(c)
+			t.render(preparecanvas, c)
 		self.all_cards_progress(prepare)
 		self.page = False
 
-	def render(self, pagesize, outfile, note='', guides=True, drawbackground=False):
+	def render(self, pagesize, outfile, note='', guides=True, drawbackground=False, dpi=300):
 		if outfile.endswith(".pdf"):
 			filename = self.format(outfile).replace(" ", "")
-			self.canvas = PDFCanvas(self.cardw, self.cardh, filename, pagesize, (0,0), drawbackground, self.format(note), guides)
+			self.canvas = PDFCanvas(
+					self.resources,
+					self.cardw, self.cardh, 
+					filename, pagesize, 
+					(0.25*inch,0.25*inch), 
+					drawbackground, 
+					self.format(note),
+					dpi=dpi)
 		else:
-			self.canvas = ImageCanvas(self.cardw, self.cardh, outfile, self.format)
+			self.canvas = ImageCanvas(self.resources, self.cardw, self.cardh, outfile, self.format)
 		for s in self.styles:
 			self.canvas.addStyle(self.styles[s])
 		self.notefmt = note
+		self.guides = guides
 		self.drawbackground = drawbackground
+		self.resources.prepare(dpi)
 		print "Rendering to {out}...".format(out=outfile)
 		def render(t, c):
 			for i in range(int(c.get('copies', 1))):
 				self.render_card(t, c)
 		self.all_cards_progress(render)
-		self.canvas.finish()
+		return self.canvas.finish()
 
 	def readfile(self, filename):
 		if filename not in self.readfiles:
 			self.readfiles.add(filename)
 			data = loaddata(filename)
-			self.parse_data(data)
-			self.parse_use(data)
+			self.parse_data(**data)
+			self.parse_use(**data)
 			self.parse_output(data)
 			self.parse_templates(data)
 			self.parse_decks(data)
 
-	def parse_data(self, data):
-		if 'cardwidth' in data:
-			self.cardw = data.get('cardwidth') * mm
-		if 'cardheight' in data:
-			self.cardh = data.get('cardheight') * mm
-		self.data.update(data)
+	def parse_data(self, cardwidth=None, cardheight=None, **kwargs):
+		if cardwidth:
+			self.cardw = cardwidth
+		if cardheight:
+			self.cardh = cardheight
+		self.data.update(kwargs)
 
-	def parse_use(self, data):
-		if 'use' in data:
-			use = data['use']
-			if type(use) == str:
-				self.readfile(use)
+	def parse_use(self, filename=None, **kwargs):
+		if filename:
+			if type(filename) == str:
+				self.readfile(filename)
 			else:
-				for u in use:
+				for u in filename:
 					self.readfile(u)
 
 	def parse_output(self, data):
 		for o in data.get('output', []):
-			self.outputs.append(o)
+			self.output(**o)
+
+	def output(self, filename, **kwargs):
+		kwargs['filename'] = filename
+		self.outputs.append(kwargs)
 
 	def parse_decks(self, data):
 		for d in data.get('decks', []):
 			template = self.templates[d['template']]
 			for c in d.get('cards', []):
-				template.cards.append(c)
+				template.card(**c)
 			if 'use' in d:
 				template.use(d['use'])
 			if 'use-csv' in d:
@@ -292,10 +272,10 @@ class CardRenderer:
 			template.sort()
 		for c in data.get('cards', []):
 			template = self.keytemplates[c['type']]
-			template.cards.append(c)
+			template.card(**c)
 			template.sort()
 
-	def run(self, targets):
+	def run(self, targets=None):
 		self.prepare_cards()
 		if not targets:
 			outputs = self.outputs
@@ -304,14 +284,20 @@ class CardRenderer:
 				targets = [targets]
 			outputs = [o for o in self.outputs if o['name'] in targets]
 
+		outfiles = []
 		for o in outputs:
-			self.render(
-					pagesize=SIZES[o.get('size', "A4")],
+			size = o.get('size', "A4")
+			if type(size) == str:
+				size = SIZES[size]
+			outfiles += self.render(
+					pagesize=size,
 					outfile = o['filename'],
+					dpi = o.get("dpi", 300),
 					note = o.get("note", ""),
 					guides = o.get("guides", True),
 					drawbackground = o.get("background", False)
 				)
+		return outfiles
 
 def loaddata(datafile, force_csv=False):
 	if datafile.startswith("http://") or datafile.startswith("https://"):
