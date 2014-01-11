@@ -92,7 +92,10 @@ class Template:
 		self.key = data.get('key', self.name)
 		self.items = []
 		for e in data.get('elements', []):
-			self.element(**e)
+			if type(e) == str:
+				self.element(e)
+			else:
+				self.element(**e)
 		self.cards = []
 
 	def element(self, *args, **kwargs):
@@ -161,10 +164,10 @@ class CardRenderer:
 
 	def parse_templates(self, data):
 		for sd in data.get('styles', []):
-			self.style(sd.get('name', ""), **sd)
+			self.style(**sd)
 
 		for td in data.get('templates', []):
-			template(**td)
+			self.template(**td)
 
 	def style(self, name, **descriptor):
 		descriptor["name"] = name
@@ -232,7 +235,7 @@ class CardRenderer:
 			self.readfiles.add(filename)
 			data = loaddata(filename)
 			self.parse_data(**data)
-			self.parse_use(**data)
+			self.parse_use(data.get('use', None))
 			self.parse_output(data)
 			self.parse_templates(data)
 			self.parse_decks(data)
@@ -244,7 +247,7 @@ class CardRenderer:
 			self.cardh = cardheight
 		self.data.update(kwargs)
 
-	def parse_use(self, filename=None, **kwargs):
+	def parse_use(self, filename=None):
 		if filename:
 			if type(filename) == str:
 				self.readfile(filename)
