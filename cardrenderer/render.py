@@ -7,6 +7,7 @@ import optparse
 import tempfile
 import yaml
 import csv
+import HTMLParser # for unescape
 from string import Formatter
 
 import progressbar
@@ -72,6 +73,7 @@ class TextTemplateItem(TemplateItem):
 
 	def render(self, canvas, data):
 		string = self.format(self.textformat, data)
+		string = HTMLParser.HTMLParser().unescape(string)
 		canvas.renderText(string, self.style, self.x, self.y, self.width, self.height)
 
 class FunctionTemplateItem(TemplateItem):
