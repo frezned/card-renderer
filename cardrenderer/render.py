@@ -206,16 +206,16 @@ class CardRenderer:
 		self.all_cards_progress(prepare)
 		self.page = False
 
-	def render(self, pagesize, outfile, note='', guides=True, drawbackground=False, dpi=300):
+	def render(self, pagesize, outfile, note='', guides=True, drawbackground=False, dpi=300, margin=0):
 		if outfile.endswith(".pdf"):
 			filename = self.format(outfile).replace(" ", "")
 			self.canvas = PDFCanvas(
 					self.resources,
 					self.cardw, self.cardh, 
-					filename, pagesize, 
-					(0.25*inch,0.25*inch), 
+					filename, pagesize, (margin, margin),
 					drawbackground, 
 					self.format(note),
+					guides,
 					dpi=dpi)
 		else:
 			self.canvas = ImageCanvas(self.resources, self.cardw, self.cardh, outfile, self.format)
@@ -225,7 +225,7 @@ class CardRenderer:
 		self.guides = guides
 		self.drawbackground = drawbackground
 		self.resources.prepare(dpi)
-		print "Rendering to {out}...".format(out=outfile)
+		print "Rendering to {out}...".format(out=self.canvas.getfilename())
 		def render(t, c):
 			for i in range(int(c.get('copies', 1))):
 				self.render_card(t, c)
@@ -300,6 +300,7 @@ class CardRenderer:
 					dpi = o.get("dpi", 300),
 					note = o.get("note", ""),
 					guides = o.get("guides", True),
+					margin = o.get("margin", 0),
 					drawbackground = o.get("background", False)
 				)
 		return outfiles

@@ -16,7 +16,7 @@ def tomm(num):
 
 class PDFCanvas:
 
-	def __init__(self, res, cardw, cardh, outfile, pagesize, margin, background, note, dpi=300):
+	def __init__(self, res, cardw, cardh, outfile, pagesize, margin, background, note, guides, dpi=300):
 		self.outfile = outfile
 		self.drawbackground = background
 		self.pagesize = tomm(pagesize)
@@ -34,7 +34,7 @@ class PDFCanvas:
 		self.styles = {}
 		self.page = False
 		self.note = note
-		self.guides = True
+		self.guides = guides
 		self.addStyle(dict(name='note', size=8, align='center'))
 		self.dpi = dpi
 		self.res = res
@@ -138,6 +138,9 @@ class PDFCanvas:
 	def drawnote(self):
 		if self.note:
 			self.renderText(self.note, 'note', self.offsetx, self.offsety + self.cardh + 1*mm, self.cardw, 100)
+
+	def getfilename(self):
+		return self.outfile
 
 	def finish(self):
 		if self.page:

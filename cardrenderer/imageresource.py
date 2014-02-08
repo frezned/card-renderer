@@ -16,6 +16,7 @@ class ImageResource:
 	def __init__(self, url):
 		self.url = url
 		self.files = {}
+		self.size = None
 		if url:
 			if url.startswith("http"):
 				pre, post = os.path.split(url)
@@ -25,9 +26,15 @@ class ImageResource:
 			else:
 				self.localfile = self.url
 				self.downfile = self.localfile
+		if not self.needsfetch():
+			self.cachesize()
 
 	def needsfetch(self):
 		return not os.path.exists(self.downfile)
+
+	def cachesize(self):
+		img = Image.open(self.downfile)
+		self.size = img.size
 
 	def fetch(self, countcurrent, counttotal):
 		if self.needsfetch():
@@ -53,6 +60,7 @@ class ImageResource:
 						buf = r.read(1024)
 				r.close()
 				os.rename(tempfn, self.downfile)
+				self.cachesize()
 			else:
 				print "Doesn't exist: ", self.url
 
@@ -63,17 +71,24 @@ class ImageResource:
 			return self.files[dpi]
 
 	def prepare(self, dpi, w, h):
-		if dpi not in self.files and os.path.exists(self.downfile):
-			outfn = "{0}dpi/{1}".format(dpi, self.localfile)
+		outfn = "{0}dpi/{1}".format(dpi, self.localfile)
+		if os.path.exists(outfn):
+			self.files[dpi] = outfn
+			return False
+		elif dpi not in self.files and os.path.exists(self.downfile):
 			factor = dpi / inch
 			size = (int(factor * w), int(factor * h))
-			img = Image.open(self.downfile)
-			if size[0] < img.size[0] and size[1] < img.size[1]:
+			if size[0] < self.size[0] and size[1] < self.size[1]:
+				img = Image.open(self.downfile)
 				mkdir("{0}dpi".format(dpi))
 				img.resize(size, Image.ANTIALIAS).save(outfn, quality=100)
 				self.files[dpi] = outfn
+				return True
 			else:
 				self.files[dpi] = self.downfile
+				return False
+		else:
+			return False
 
 class Resources:
 
@@ -99,13 +114,15 @@ class Resources:
 				r.fetch(idx+1, total)
 			except Exception as e:
 				print e
+		print
 
 		print "Preparing all images for {0}dpi...".format(dpi)
 		total = len(self.needed)
+		resized = False
 		for idx, n in enumerate(self.needed):
 			try:
-				print "\r[{0:3}/{1:3}] {2:100}".format(idx+1,total, n[0].localfile),
-				n[0].prepare(dpi, *n[1:])
+				print "\r[{3} {0:3}/{1:3}] {2:100}".format(idx+1,total, n[0].localfile, resized and "Y" or "N"),
+				resized = n[0].prepare(dpi, *n[1:])
 			except Exception as e:
 				print e
 		print

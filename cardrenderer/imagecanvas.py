@@ -18,6 +18,9 @@ class ImageCanvas:
 		self.res = res
 		self.renderedcards = []
 
+	def getfilename(self):
+		return self.outfmt
+
 	def drawImage(self, filename, x, y, width, height):
 		filename = self.res.getfilename(filename, self.dpi)
 		if os.path.exists(filename):
