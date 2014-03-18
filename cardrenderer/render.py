@@ -215,31 +215,36 @@ class CardRenderer:
 		self.all_cards_progress(prepare)
 		self.page = False
 
-	def render(self, pagesize, outfile, note='', guides=True, drawbackground=False, dpi=300, margin=0, filtercomp=None, filtertemplate=None, imageextension=None):
+	def render(self, pagesize, outfile, note='', guides=True, background=False, dpi=300, margin=0, filter=None, filtertemplate=None, imageextension=None, composite=False, **kwargs):
 		if outfile.endswith(".pdf"):
 			filename = self.format(outfile).replace(" ", "")
-			self.canvas = CompositingCanvas(
+			args = dict(
 					res=self.resources,
 					cardw=self.cardw, cardh=self.cardh, 
 					outfile=filename, pagesize=pagesize, margin=(margin, margin),
-					background=drawbackground, 
+					background=background, 
 					notefmt=self.format(note),
 					guides=guides,
-					dpi=dpi)
+					dpi=dpi
+					)
+			if composite:
+				self.canvas = CompositingCanvas(**args)
+			else:
+				self.canvas = PDFCanvas(**args)
 		else:
 			self.canvas = ImageCanvas(self.resources, self.cardw, self.cardh, outfile, self.format)
 		for s in self.styles:
 			self.canvas.addStyle(self.styles[s])
 		self.notefmt = note
 		self.guides = guides
-		self.drawbackground = drawbackground
+		self.background = background
 		self.resources.prepare(dpi, imageextension)
 		print "Rendering to {out}...".format(out=self.canvas.getfilename())
 		def cardfilter(c):
 			if filtertemplate:
 				filt = self.format(filtertemplate, c)
-				if filtercomp:
-					return filt in filtercomp
+				if filter:
+					return filt in filter
 				else:
 					return filt
 			else:
@@ -316,14 +321,7 @@ class CardRenderer:
 			outfiles += self.render(
 					pagesize=size,
 					outfile = o['filename'],
-					dpi = o.get("dpi", 300),
-					note = o.get("note", ""),
-					guides = o.get("guides", True),
-					margin = o.get("margin", 0),
-					drawbackground = o.get("background", False),
-					filtertemplate = o.get("filtertemplate", None),
-					filtercomp = o.get("filter", None),
-					imageextension = o.get("imageextension", None)
+					**o
 				)
 		return outfiles
 
