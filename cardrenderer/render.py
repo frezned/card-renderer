@@ -225,7 +225,8 @@ class CardRenderer:
 					background=background, 
 					notefmt=self.format(note),
 					guides=guides,
-					dpi=dpi
+					dpi=dpi,
+					compat=kwargs.get("compat", False)
 					)
 			if composite:
 				self.canvas = CompositingCanvas(**args)
