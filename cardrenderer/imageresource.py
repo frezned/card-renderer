@@ -33,8 +33,12 @@ class ImageResource:
 		return not os.path.exists(self.downfile)
 
 	def cachesize(self):
-		img = Image.open(self.downfile)
-		self.size = img.size
+		try:
+			img = Image.open(self.downfile)
+			self.size = img.size
+		except Exception, e:
+			self.size = (0, 0)
+			print "ERROR:", self.downfile, e
 
 	def fetch(self, countcurrent, counttotal):
 		if self.needsfetch():
@@ -70,8 +74,10 @@ class ImageResource:
 		else:
 			return self.files[dpi]
 
-	def prepare(self, dpi, w, h):
-		outfn = "{0}dpi/{1}".format(dpi, self.localfile)
+	def prepare(self, dpi, w, h, ext=None):
+		outfn = "{0}dpi/{1}".format(dpi, os.path.split(self.localfile)[1])
+		if ext:
+			outfn = os.path.splitext(outfn)[0] + ext
 		if os.path.exists(outfn):
 			self.files[dpi] = outfn
 			return False
@@ -104,7 +110,7 @@ class Resources:
 			if tup not in self.needed:
 				self.needed.append(tup)
 
-	def prepare(self, dpi):
+	def prepare(self, dpi, ext=None):
 		fetches = [i for i in self.images.values() if i.needsfetch()]
 		total = len(fetches)
 		current = 0
@@ -122,7 +128,7 @@ class Resources:
 		for idx, n in enumerate(self.needed):
 			try:
 				print "\r[{3} {0:3}/{1:3}] {2:100}".format(idx+1,total, n[0].localfile, resized and "Y" or "N"),
-				resized = n[0].prepare(dpi, *n[1:])
+				resized = n[0].prepare(dpi, *n[1:], ext=ext)
 			except Exception as e:
 				print e
 		print

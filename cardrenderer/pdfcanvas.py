@@ -8,15 +8,17 @@ from reportlab.lib.styles import ParagraphStyle
 from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
 from reportlab.lib.units import mm
 
+from canvas import Canvas
+
 def tomm(num):
 	if type(num) in (float, int):
 		return num * mm
 	else:
 		return tuple([x * mm for x in num])
 
-class PDFCanvas:
+class PDFCanvas(Canvas):
 
-	def __init__(self, res, cardw, cardh, outfile, pagesize, margin, background, note, guides, dpi=300):
+	def __init__(self, res, cardw, cardh, outfile, pagesize, margin=(0,0), background=False, note=None, guides=True, dpi=300, **kwargs):
 		self.outfile = outfile
 		self.drawbackground = background
 		self.pagesize = tomm(pagesize)
@@ -38,11 +40,17 @@ class PDFCanvas:
 		self.addStyle(dict(name='note', size=8, align='center'))
 		self.dpi = dpi
 		self.res = res
+		self.compat = True
 
 	def drawImage(self, filename, x, y, width, height):
 		filename = self.res.getfilename(filename, self.dpi)
 		if os.path.exists(filename):
-			self.canvas.drawImage(filename, tomm(x), tomm(y), tomm(width), tomm(height))
+			try:
+				self.canvas.drawImage(filename, tomm(x), tomm(y), tomm(width), tomm(height))
+			except Exception, a:
+				print "ERROR:", filename, a
+		else:
+			print "ERROR: No file", filename
 
 	def addStyle(self, data):
 		name = data.get('name', "")
@@ -61,22 +69,27 @@ class PDFCanvas:
 
 	def renderText(self, text, stylename, x, y, width, height):
 		lines = text.splitlines()
-		paras = []
-		height = 0
-		i = 0
 		style = self.styles[stylename]
-		for l in lines:
-			p = Paragraph(l, style)
-			tx, ty = p.wrap(tomm(width), tomm(height))
-		#	height += ty
-		#	paras.append((p, height))
-			voffset = ty*0.5*len(lines) - ty*i
-			p.drawOn(self.canvas, tomm(x), tomm(y) + voffset)
-			i += 1
-		#offset = height/2
-		#for p, h in paras:
-		#	p.drawOn(self.canvas, x, y - offset)
-		#	offset -= h
+		if self.compat:
+			i = 0
+			for l in lines:
+				p = Paragraph(l, style)
+				tx, ty = p.wrap(tomm(width), tomm(height))
+				voffset = ty*0.5*len(lines) - ty*i
+				p.drawOn(self.canvas, tomm(x), tomm(y) + voffset)
+				i += 1
+		else:
+			height = 0
+			paras = []
+			for l in lines:
+				p = Paragraph(l, style)
+				tx, ty = p.wrap(tomm(width), tomm(height))
+				height += ty
+				paras.append((p, height))
+			offset = height/2
+			for p, h in paras:
+				p.drawOn(self.canvas, tomm(x), tomm(y) - offset)
+				offset -= h
 
 	def beginCard(self, card):
 		if not self.page:

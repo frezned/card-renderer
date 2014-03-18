@@ -7,12 +7,14 @@ import optparse
 import tempfile
 import yaml
 import csv
+import collections
 import HTMLParser # for unescape
 from string import Formatter
 
 import progressbar
 
 from pdfcanvas import PDFCanvas
+from compositingcanvas import CompositingCanvas
 from imagecanvas import ImageCanvas
 from preparecanvas import PrepareCanvas
 from imageresource import Resources
@@ -62,7 +64,10 @@ class GraphicTemplateItem(TemplateItem):
 
 	def render(self, canvas, data):
 		url = self.format(self.filename, data)
-		canvas.drawImage(url, self.x, self.y, self.width, self.height)
+		if url:
+			canvas.drawImage(url, self.x, self.y, self.width, self.height)
+		else:
+			print "ERROR: blank url", data.get("title", "??")
 
 class TextTemplateItem(TemplateItem):
 
@@ -157,7 +162,8 @@ class CardRenderer:
 		merged_data = {}
 		merged_data.update(self.data)
 		merged_data.update(data)
-		return Formatter().vformat(fmtstring, [], merged_data)
+		dd = collections.defaultdict(lambda: '???', merged_data)
+		return Formatter().vformat(fmtstring, [], dd)
 
 	def render_card(self, template, card):
 		self.canvas.beginCard(card)
@@ -181,20 +187,23 @@ class CardRenderer:
 		self.keytemplates[t.key] = t
 		return t
 
-	def all_cards_progress(self, function):
+	def all_cards_progress(self, function, check=None):
 		i = 0
 		cards = []
 		for t in self.templates.values():
 			for c in t.cards:
 				cards.append((t, c))
-		widgets = [progressbar.Percentage(), ' ', progressbar.Bar(marker='=', left='[', right=']')]
-		bar = progressbar.ProgressBar(widgets=widgets, maxval=len(cards))
-		bar.start()
-		for c in cards:
-			function(*c)
-			i += 1
-			bar.update(i)
-		bar.finish()
+		if check:
+			cards = filter(check, cards)
+		if cards:
+			widgets = [progressbar.Percentage(), ' ', progressbar.Bar(marker='=', left='[', right=']')]
+			bar = progressbar.ProgressBar(widgets=widgets, maxval=len(cards))
+			bar.start()
+			for c in cards:
+				function(*c)
+				i += 1
+				bar.update(i)
+			bar.finish()
 
 	def prepare_cards(self):
 		# ensure the destination folders exist
@@ -206,16 +215,16 @@ class CardRenderer:
 		self.all_cards_progress(prepare)
 		self.page = False
 
-	def render(self, pagesize, outfile, note='', guides=True, drawbackground=False, dpi=300, margin=0):
+	def render(self, pagesize, outfile, note='', guides=True, drawbackground=False, dpi=300, margin=0, filtercomp=None, filtertemplate=None, imageextension=None):
 		if outfile.endswith(".pdf"):
 			filename = self.format(outfile).replace(" ", "")
-			self.canvas = PDFCanvas(
-					self.resources,
-					self.cardw, self.cardh, 
-					filename, pagesize, (margin, margin),
-					drawbackground, 
-					self.format(note),
-					guides,
+			self.canvas = CompositingCanvas(
+					res=self.resources,
+					cardw=self.cardw, cardh=self.cardh, 
+					outfile=filename, pagesize=pagesize, margin=(margin, margin),
+					background=drawbackground, 
+					notefmt=self.format(note),
+					guides=guides,
 					dpi=dpi)
 		else:
 			self.canvas = ImageCanvas(self.resources, self.cardw, self.cardh, outfile, self.format)
@@ -224,11 +233,21 @@ class CardRenderer:
 		self.notefmt = note
 		self.guides = guides
 		self.drawbackground = drawbackground
-		self.resources.prepare(dpi)
+		self.resources.prepare(dpi, imageextension)
 		print "Rendering to {out}...".format(out=self.canvas.getfilename())
+		def cardfilter(c):
+			if filtertemplate:
+				filt = self.format(filtertemplate, c)
+				if filtercomp:
+					return filt in filtercomp
+				else:
+					return filt
+			else:
+				return True
 		def render(t, c):
-			for i in range(int(c.get('copies', 1))):
-				self.render_card(t, c)
+			if cardfilter(c):
+				for i in range(int(c.get('copies', 1))):
+					self.render_card(t, c)
 		self.all_cards_progress(render)
 		return self.canvas.finish()
 
@@ -301,7 +320,10 @@ class CardRenderer:
 					note = o.get("note", ""),
 					guides = o.get("guides", True),
 					margin = o.get("margin", 0),
-					drawbackground = o.get("background", False)
+					drawbackground = o.get("background", False),
+					filtertemplate = o.get("filtertemplate", None),
+					filtercomp = o.get("filter", None),
+					imageextension = o.get("imageextension", None)
 				)
 		return outfiles
 
