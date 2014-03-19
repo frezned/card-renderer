@@ -65,6 +65,8 @@ class PDFCanvas(Canvas):
 		s.fontSize = data.get('size', 10)
 		s.alignment = dict(center=TA_CENTER, left=TA_LEFT, right=TA_RIGHT)[data.get('align', 'left')]
 		s.leading = data.get('leading', s.leading)
+		s.valign = data.get('valign', "top")
+		s.textColor = data.get('color', "#ff000000")
 		self.styles[name] = s
 
 	def renderText(self, text, stylename, x, y, width, height):
