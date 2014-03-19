@@ -79,17 +79,16 @@ class PDFCanvas(Canvas):
 				p.drawOn(self.canvas, tomm(x), tomm(y) + voffset)
 				i += 1
 		else:
-			height = 0
-			paras = []
-			for l in lines:
-				p = Paragraph(l, style)
-				tx, ty = p.wrap(tomm(width), tomm(height))
-				height += ty
-				paras.append((p, height))
-			offset = height/2
-			for p, h in paras:
-				p.drawOn(self.canvas, tomm(x), tomm(y) - offset)
-				offset -= h
+			text = "<br />".join(lines)
+			p = Paragraph(text, style)
+			tx, ty = p.wrap(tomm(width), tomm(height))
+			if style.valign == "top":
+				offset = 0
+			elif style.valign == "mid":
+				offset = 0.5 * ty
+			elif style.valign == "bottom":
+				offset = ty
+			p.drawOn(self.canvas, tomm(x), tomm(y) - offset)
 
 	def beginCard(self, card):
 		if not self.page:
