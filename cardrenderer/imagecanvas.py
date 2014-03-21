@@ -5,15 +5,12 @@ from canvas import Canvas
 
 inch = 25.4
 
-def fmt(string, data):
-	return string.format(data)
-
 def mkdir(n):
 	if not os.path.exists(n): os.mkdir(n)
 
 class ImageCanvas(Canvas):
     
-	def __init__(self, res, cardw, cardh, outfmt="", filenamecb=fmt, **kwargs):
+	def __init__(self, res, cardw, cardh, outfmt="card.png", filenamecb=None, **kwargs):
 		self.card = None
 		self.image = None
 		if kwargs:
@@ -24,13 +21,16 @@ class ImageCanvas(Canvas):
 		self.size = (int(cardw*self.scale), int(cardh*self.scale))
 		self.finalsize = self.size #(825, 1125)
 		self.outfmt = outfmt
-		self.filenamecb = filenamecb
+		self.filenamecb = filenamecb or self.format
 		self.styles = {}
 		self.imgheight = self.size[1]
 		self.res = res
 		self.cmyk = outfmt.endswith(".tif")
 		self.renderedcards = []
 
+	def format(self, data):
+		return self.outfmt.format( data )
+			
 	def getfilename(self):
 		return self.outfmt
 
@@ -81,7 +81,7 @@ class ImageCanvas(Canvas):
 	def endCard(self):
 		fndata = dict(self.card)
 		fndata['cardidx'] = len(self.renderedcards)
-		outf = self.filenamecb(self, self.outfmt, fndata)
+		outf = self.filenamecb( fndata )
         #  create directory if it doesn't exist
 		mkdir( os.path.split( outf )[0] )
 		

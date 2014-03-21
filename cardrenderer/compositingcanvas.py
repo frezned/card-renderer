@@ -11,9 +11,9 @@ class CompositingCanvas(Canvas):
 		self.card = None
 		self.idx = 0
 
-	def imagefilename(self, imageCanvas, fmt, data):
+	def imagefilename( self, data ):
 		self.idx += 1
-		return "{0}dpi/composite/{1:03}.png".format( imageCanvas.dpi, self.idx-1)
+		return "{0}dpi/composite/{1:03}.png".format( self.image.dpi, self.idx-1 )
 
 	def beginCard(self, card):
 		self.image.beginCard(card)
