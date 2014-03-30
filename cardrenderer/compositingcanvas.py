@@ -33,9 +33,9 @@ class CompositingCanvas(Canvas):
 	def drawImage(self, filename, x, y, width, height):
 		self.image.drawImage(filename, x, y, width, height)
 
-	def renderText(self, text, stylename, x, y, width, height):
+	def renderText(self, text, style, x, y, width, height):
 		# save for later
-		self.texts.append((text, stylename, x, y, width, height))
+		self.texts.append((text, style, x, y, width, height))
 	
 	def getfilename(self):
 		return self.pdf.getfilename()

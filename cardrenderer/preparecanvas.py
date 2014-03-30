@@ -10,5 +10,5 @@ class PrepareCanvas(Canvas):
 	def drawImage(self, filename, x, y, width, height):
 		self.res.markneeded(filename, width, height)
 
-	def renderText(self, text, stylename, x, y, width, height):
+	def renderText(self, text, style, x, y, width, height):
 		pass

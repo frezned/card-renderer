@@ -50,17 +50,17 @@ class ImageCanvas(Canvas):
 		self.styles[s['name']] = s
 		print "Added style (*{scale})".format(s=s, scale=self.scale)
 
-	def renderText(self, text, stylename, x, y, width, height):
+	def renderText(self, text, style, x, y, width, height):
 		lines = text.splitlines()
 		i = 0
-		style = self.styles[stylename]
-		font = style['font']
+		styledata = self.styles[style]
+		font = styledata['font']
 		draw = ImageDraw.Draw(self.image)
 		y = self.imgheight - y*self.scale
 		for l in lines:
 			tx, ty = font.getsize(l)
 			xoffset = 0
-			if style['alignment'] == 'center':
+			if styledata['alignment'] == 'center':
 				xoffset = (width*self.scale-tx)*0.5
 			voffset = ty*0.5*len(lines) - ty*(i-0.5)
 			draw.text((int(x*self.scale + xoffset), int(y - voffset)), l, font=font, fill=(0,0,0))

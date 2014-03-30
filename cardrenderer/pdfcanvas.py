@@ -69,26 +69,26 @@ class PDFCanvas(Canvas):
 		s.textColor = data.get('color', "#ff000000")
 		self.styles[name] = s
 
-	def renderText(self, text, stylename, x, y, width, height):
+	def renderText(self, text, style, x, y, width, height):
 		lines = text.splitlines()
-		style = self.styles[stylename]
+		styledata = self.styles[style]
 		if self.compat:
 			i = 0
 			for l in lines:
-				p = Paragraph(l, style)
+				p = Paragraph(l, styledata)
 				tx, ty = p.wrap(tomm(width), tomm(height))
 				voffset = ty*0.5*len(lines) - ty*i
 				p.drawOn(self.canvas, tomm(x), tomm(y) + voffset)
 				i += 1
 		else:
 			text = "<br />".join(lines)
-			p = Paragraph(text, style)
+			p = Paragraph(text, styledata)
 			tx, ty = p.wrap(tomm(width), tomm(height))
-			if style.valign == "top":
+			if styledata.valign == "top":
 				offset = 0
-			elif style.valign == "mid":
+			elif styledata.valign == "mid":
 				offset = 0.5 * ty
-			elif style.valign == "bottom":
+			elif styledata.valign == "bottom":
 				offset = ty
 			p.drawOn(self.canvas, tomm(x), tomm(y) - offset)
 
