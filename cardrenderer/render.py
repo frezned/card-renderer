@@ -117,6 +117,18 @@ class Template:
 		else:
 			self.items.append(TextTemplateItem(self.builder, kwargs))
 
+	def text(self, format, **kwargs):
+		kwargs['format'] = format
+		self.items.append(TextTemplateItem(self.builder, kwargs))
+
+	def image(self, filename, **kwargs):
+		kwargs['filename'] = filename
+		self.items.append(GraphicTemplateItem(self.builder, kwargs))
+
+	def function(self, callback, **kwargs):
+		kwargs['callback'] = callback
+		self.items.append(FunctionTemplateItem(self.builder, kwargs))
+
 	def render(self, canvas, data):
 		for i in self.items:
 			i.render(canvas, data)
