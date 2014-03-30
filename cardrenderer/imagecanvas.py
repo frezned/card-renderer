@@ -10,6 +10,8 @@ class ImageCanvas(Canvas):
 
 	def __init__(self, res, cardw, cardh, outfmt="", filenamecb=fmt, **kwargs):
 		self.card = None
+		self.cardw = cardw
+		self.cardh = cardh
 		self.image = None
 		self.scale = 750.0 / cardw
 		self.size = (int(cardw*self.scale), int(cardh*self.scale))
@@ -26,7 +28,9 @@ class ImageCanvas(Canvas):
 	def getfilename(self):
 		return self.outfmt
 
-	def drawImage(self, filename, x, y, width, height):
+	def drawImage(self, filename, x=0, y=0, width=None, height=None):
+		width = width or self.cardw
+		height = height or self.height
 		filename = self.res.getfilename(filename, self.dpi)
 		if os.path.exists(filename):
 			source = Image.open(filename).resize((int(width*self.scale), int(height*self.scale)))
@@ -50,7 +54,9 @@ class ImageCanvas(Canvas):
 		self.styles[s['name']] = s
 		print "Added style (*{scale})".format(s=s, scale=self.scale)
 
-	def renderText(self, text, style, x, y, width, height):
+	def renderText(self, text, style=None, x=0, y=0, width=None, height=None):
+		width = width or self.cardw
+		height = height or self.height
 		lines = text.splitlines()
 		i = 0
 		styledata = self.styles[style]

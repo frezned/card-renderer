@@ -24,16 +24,18 @@ class CompositingCanvas(Canvas):
 		# draw image
 		outfn = self.image.endCard()
 		self.pdf.beginCard(self.card)
+		# don't use the PDFCanvas' renderer output, as that'll trigger the resource manager!
+		# just use the actual canvas directly
 		self.pdf.canvas.drawImage(outfn, 0, 0, self.pdf.cardw, self.pdf.cardh)
 		# draw texts
 		for t in self.texts:
 			self.pdf.renderText(*t)
 		self.pdf.endCard()
 
-	def drawImage(self, filename, x, y, width, height):
+	def drawImage(self, filename, x=0, y=0, width=None, height=None):
 		self.image.drawImage(filename, x, y, width, height)
 
-	def renderText(self, text, style, x, y, width, height):
+	def renderText(self, text, style=None, x=0, y=0, width=None, height=None):
 		# save for later
 		self.texts.append((text, style, x, y, width, height))
 	

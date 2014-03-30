@@ -42,7 +42,9 @@ class PDFCanvas(Canvas):
 		self.res = res
 		self.compat = compat
 
-	def drawImage(self, filename, x, y, width, height):
+	def drawImage(self, filename, x=0, y=0, width=None, height=None):
+		width = width or self.cardw
+		height = height or self.cardh
 		filename = self.res.getfilename(filename, self.dpi)
 		if os.path.exists(filename):
 			try:
@@ -69,7 +71,9 @@ class PDFCanvas(Canvas):
 		s.textColor = data.get('color', "#ff000000")
 		self.styles[name] = s
 
-	def renderText(self, text, style, x, y, width, height):
+	def renderText(self, text, style=None, x=0, y=0, width=None, height=None):
+		width = width or self.cardw
+		height = height or self.cardh
 		lines = text.splitlines()
 		styledata = self.styles[style]
 		if self.compat:
