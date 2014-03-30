@@ -189,9 +189,19 @@ class CardRenderer:
 		for td in data.get('templates', []):
 			self.template(**td)
 
-	def style(self, name, **descriptor):
+	def style(self, name=None, **descriptor):
+		if name is None:
+			namefmt = "{font}:{size}"
+			font = os.path.splitext(descriptor.get("font", "unknown"))[0]
+			size = descriptor.get("size", 10)
+			name = "{}:{}".format(font, size)
+			idx = 1
+			while name in self.styles:
+				idx += 1
+				name = "{}:{}_{}".format(font, size, idx)
 		descriptor["name"] = name
 		self.styles[name] = descriptor
+		return name
 
 	def template(self, **kwargs):
 		t = Template(kwargs, self)
