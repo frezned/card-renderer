@@ -1,7 +1,6 @@
 from PIL import Image
 import requests
 import os, sys, tempfile, multiprocessing
-# from reportlab.lib.units import inch
 
 import base64, hashlib
 def hash(string):
