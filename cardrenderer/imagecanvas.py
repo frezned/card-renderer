@@ -53,7 +53,9 @@ class ImageCanvas(Canvas):
 		s = {}
 		s['name'] = data.get('name', "")
 		s['size'] = int(data.get('size', 10)*self.scale*0.38)
-		fontfile = data.get('font', "Candara.ttf")
+		fontfile = data.get('font', None)
+		if not fontfile:
+			s['font'] = ImageFont.load_default()
 		if fontfile.endswith(".ttf") or fontfile.endswith(".otf"):
 			s['font'] = ImageFont.truetype(fontfile, s['size'])
 		else:
