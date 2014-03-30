@@ -3,28 +3,36 @@ import tempfile, os
 from PIL import Image, ImageDraw, ImageFont
 from canvas import Canvas
 
-def fmt(string, data):
-	return string.format(data)
+inch = 25.4
+
+def mkdir(n):
+	if not os.path.exists(n): os.mkdir(n)
 
 class ImageCanvas(Canvas):
-
-	def __init__(self, res, cardw, cardh, outfmt="", filenamecb=fmt, **kwargs):
+    
+	def __init__(self, res, cardw, cardh, outfmt="card.png", filenamecb=None, **kwargs):
 		self.card = None
 		self.cardw = cardw
 		self.cardh = cardh
 		self.image = None
-		self.scale = 750.0 / cardw
+		if kwargs:
+			self.dpi = kwargs['dpi'] or 300
+		else:
+			self.dpi = 300
+		self.scale = self.dpi / inch
 		self.size = (int(cardw*self.scale), int(cardh*self.scale))
 		self.finalsize = self.size #(825, 1125)
 		self.outfmt = outfmt
-		self.filenamecb = filenamecb
+		self.filenamecb = filenamecb or self.format
 		self.styles = {}
 		self.imgheight = self.size[1]
-		self.dpi = 300
 		self.res = res
 		self.cmyk = outfmt.endswith(".tif")
 		self.renderedcards = []
 
+	def format(self, data):
+		return self.outfmt.format( data )
+			
 	def getfilename(self):
 		return self.outfmt
 
@@ -79,7 +87,10 @@ class ImageCanvas(Canvas):
 	def endCard(self):
 		fndata = dict(self.card)
 		fndata['cardidx'] = len(self.renderedcards)
-		outf = self.filenamecb(self.outfmt, fndata)
+		outf = self.filenamecb( fndata )
+        #  create directory if it doesn't exist
+		mkdir( os.path.split( outf )[0] )
+		
 		finalimage = Image.new(self.cmyk and "CMYK" or "RGBA", self.finalsize)
 		finalimage.paste((0,0,0))
 		def getpad(idx):
