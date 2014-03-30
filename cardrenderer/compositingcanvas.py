@@ -7,13 +7,13 @@ class CompositingCanvas(Canvas):
 
 	def __init__(self, **kwargs):
 		self.pdf = PDFCanvas(**kwargs)
-		self.image = ImageCanvas(kwargs["res"], kwargs["cardw"], kwargs["cardh"], filenamecb=self.imagefilename)
+		self.image = ImageCanvas( filenamecb=self.imagefilename, **kwargs )
 		self.card = None
 		self.idx = 0
 
-	def imagefilename(self, fmt, data):
+	def imagefilename( self, data ):
 		self.idx += 1
-		return "composite/{0:03}.png".format(self.idx-1)
+		return "{0}dpi/composite/{1:03}.png".format( self.image.dpi, self.idx-1 )
 
 	def beginCard(self, card):
 		self.image.beginCard(card)

@@ -1,12 +1,14 @@
 from PIL import Image
 import requests
 import os, sys, tempfile, multiprocessing
-from reportlab.lib.units import inch
+# from reportlab.lib.units import inch
 
 import base64, hashlib
 def hash(string):
 	hasher = hashlib.sha1(string)
 	return base64.urlsafe_b64encode(hasher.digest()[0:10]).replace("=", "")
+
+inch = 24.5
 
 def mkdir(n):
 	if not os.path.exists(n): os.mkdir(n)
