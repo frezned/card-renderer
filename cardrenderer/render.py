@@ -5,10 +5,7 @@ import json
 import datetime
 import optparse
 import tempfile
-import yaml
-import csv
 import collections
-import HTMLParser # for unescape
 from string import Formatter
 
 import progressbar
@@ -239,12 +236,14 @@ def loaddata(datafile, force_csv=False):
 		f = open(datafile)
 	if force_csv or datafile.endswith(".csv"):
 		# csv is always card definitions
-		reader = csv.DictReader(f)
+		import unicodecsv
+		reader = unicodecsv.DictReader(f)
 		data = []
 		for row in reader:
 			data.append({k: v.replace('|', '\n') for k, v in row.iteritems()})
 	else:
 		# assume it's yaml
+		import yaml
 		data = yaml.load(f)
 	f.close()
 	return data
