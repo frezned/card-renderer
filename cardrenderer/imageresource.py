@@ -39,6 +39,7 @@ class ImageResource:
 			self.size = img.size
 		except Exception, e:
 			self.size = (0, 0)
+			print
 			print "ERROR:", self.downfile, e
 
 	def fetch(self, countcurrent, counttotal):
