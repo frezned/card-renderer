@@ -55,15 +55,24 @@ class PDFCanvas(Canvas):
 			print "ERROR: No file", filename
 
 	def addStyle(self, data):
+		def addFont(fontfile):
+			if not fontfile:
+				return None
+			elif fontfile.endswith(".ttf") or fontfile.endswith(".otf"):
+				fontname = os.path.splitext(fontfile)[0]
+				pdfmetrics.registerFont(TTFont(fontname, fontfile))
+				print "Registered", fontfile
+				return fontname
+			else:
+				return fontfile
 		name = data.get('name', "")
 		s = ParagraphStyle(name)
-		fontfile = data.get('font', "Helvetica")
-		if fontfile.endswith(".ttf") or fontfile.endswith(".otf"):
-			fontname = os.path.splitext(fontfile)[0]
-			pdfmetrics.registerFont(TTFont(fontname, fontfile))
-			s.fontName = fontname
-		else:
-			s.fontName = fontfile
+		normal = addFont(data.get('font', "Helvetica"))
+		bold = addFont(data.get('bold', None))
+		italic = addFont(data.get('italic', None))
+		bolditalic = addFont(data.get('bolditalic', None))
+		pdfmetrics.registerFontFamily(normal, normal=normal, bold=bold or normal, italic=italic or normal, boldItalic=bolditalic or normal)
+		s.fontName = normal
 		s.fontSize = data.get('size', 10)
 		s.alignment = dict(center=TA_CENTER, left=TA_LEFT, right=TA_RIGHT)[data.get('align', 'left')]
 		s.leading = data.get('leading', s.leading)
