@@ -35,7 +35,7 @@ class CardRenderer:
 	def __init__(self):
 		self.decks = {}
 		self.styles = {}
-		self.templates = {}
+		self.templates = []
 		self.keytemplates = {}
 		self.readfiles = set()
 		self.outputs = []
@@ -84,14 +84,14 @@ class CardRenderer:
 
 	def template(self, **kwargs):
 		t = Template(kwargs, self)
-		self.templates[t.name] = t
+		self.templates.append(t)
 		self.keytemplates[t.key] = t
 		return t
 
 	def all_cards_progress(self, function, check=None):
 		i = 0
 		cards = []
-		for t in self.templates.values():
+		for t in self.templates:
 			for c in t.cards:
 				cards.append((t, c))
 		if check:
@@ -193,7 +193,8 @@ class CardRenderer:
 
 	def parse_decks(self, data):
 		for d in data.get('decks', []):
-			template = self.templates[d['template']]
+			template = [x for x in self.templates 
+					if x.name == d['template']][0]
 			for c in d.get('cards', []):
 				template.card(**c)
 			if 'use' in d:
