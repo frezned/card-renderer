@@ -120,6 +120,7 @@ class Resources:
 			try:
 				r.fetch(idx+1, total)
 			except Exception as e:
+				print
 				print e
 		print
 

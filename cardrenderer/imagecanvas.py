@@ -41,13 +41,17 @@ class ImageCanvas(Canvas):
 		height = height or self.height
 		filename = self.res.getfilename(filename, self.dpi)
 		if os.path.exists(filename):
-			source = Image.open(filename).resize((int(width*self.scale), int(height*self.scale)))
-			y = self.imgheight-(height*self.scale)-(y*self.scale)
-			pos = (int(x*self.scale), int(y))
 			try:
-				self.image.paste(source, pos, source)
-			except ValueError:
-				self.image.paste(source, pos)
+				source = Image.open(filename).resize((int(width*self.scale), int(height*self.scale)))
+				y = self.imgheight-(height*self.scale)-(y*self.scale)
+				pos = (int(x*self.scale), int(y))
+				try:
+					self.image.paste(source, pos, source)
+				except ValueError:
+					self.image.paste(source, pos)
+			except IOError, e:
+				print
+				print e.message, filename
 
 	def addStyle(self, data):
 		s = {}
