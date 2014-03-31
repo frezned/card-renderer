@@ -32,7 +32,7 @@ FRAME = (63, 88)
 
 class CardRenderer:
 
-	def __init__(self):
+	def __init__(self, cardw=CARD[0], cardh=CARD[1]):
 		self.decks = {}
 		self.styles = {}
 		self.templates = []
@@ -40,8 +40,8 @@ class CardRenderer:
 		self.readfiles = set()
 		self.outputs = []
 		self.name = ""
-		self.cardw = CARD[0]
-		self.cardh = CARD[1]
+		self.cardw = cardw
+		self.cardh = cardh
 		self.data = dict(
 				name="",
 				date=datetime.datetime.now().strftime("%d-%b-%Y")
