@@ -25,22 +25,33 @@ class PDFCanvas(Canvas):
 		self.margin = tomm(margin)
 		self.x = 0
 		self.y = 0
-		self.cardw = tomm(cardw)
-		self.cardh = tomm(cardh)
-		self.columns = int((self.pagesize[0]-self.margin[0]*2) / self.cardw)
-		self.rows = int((self.pagesize[1]-self.margin[1]*2) / self.cardh)
-		self.offsetx = (self.pagesize[0] - self.columns*self.cardw) * 0.5
-		self.offsety = (self.pagesize[1] - self.cardh) - (self.pagesize[1] - self.rows*self.cardh) * 0.5
+		self.page = False
 		self.tempfile = tempfile.mktemp()
 		self.canvas = canvas.Canvas(self.tempfile, pagesize=self.pagesize)
 		self.styles = {}
-		self.page = False
 		self.note = note
 		self.guides = guides
-		self.addStyle(dict(name='note', size=8, align='center'))
+		if note:
+			self.addStyle(dict(name='note', size=8, align='center'))
 		self.dpi = dpi
 		self.res = res
 		self.compat = compat
+		self.cardw = None
+		self.cardh = None
+		self.setSize(cardw, cardh)
+
+	def setSize(self, cardw, cardh):
+		cardw = tomm(cardw)
+		cardh = tomm(cardh)
+		if not (cardw == self.cardw and cardh == self.cardh):
+			self.cardw = cardw
+			self.cardh = cardh
+			self.columns = int((self.pagesize[0]-self.margin[0]*2) / self.cardw)
+			self.rows = int((self.pagesize[1]-self.margin[1]*2) / self.cardh)
+			self.offsetx = (self.pagesize[0] - self.columns*self.cardw) * 0.5
+			self.offsety = (self.pagesize[1] - self.cardh) - (self.pagesize[1] - self.rows*self.cardh) * 0.5
+			if self.page:
+				self.endPage()
 
 	def drawImage(self, filename, x=0, y=0, width=None, height=None):
 		width = width or self.cardw

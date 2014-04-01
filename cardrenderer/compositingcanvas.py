@@ -47,3 +47,7 @@ class CompositingCanvas(Canvas):
 
 	def finish(self):
 		return self.pdf.finish()
+
+	def setSize(self, cardw, cardh):
+		self.pdf.setSize(cardw, cardh)
+		self.image.setSize(cardw, cardh)

@@ -10,18 +10,12 @@ def mkdir(n):
 
 class ImageCanvas(Canvas):
     
-	def __init__(self, res, cardw, cardh, outfmt="card.png", filenamecb=None, **kwargs):
+	def __init__(self, res, cardw, cardh, outfmt="card.png", filenamecb=None, dpi=300, **kwargs):
 		self.card = None
-		self.cardw = cardw
-		self.cardh = cardh
 		self.image = None
-		if kwargs:
-			self.dpi = kwargs['dpi'] or 300
-		else:
-			self.dpi = 300
+		self.dpi = dpi
 		self.scale = self.dpi / inch
-		self.size = (int(cardw*self.scale), int(cardh*self.scale))
-		self.finalsize = self.size #(825, 1125)
+		self.setSize(cardw, cardh)
 		self.outfmt = outfmt
 		self.filenamecb = filenamecb or self.format
 		self.styles = {}
@@ -29,6 +23,13 @@ class ImageCanvas(Canvas):
 		self.res = res
 		self.cmyk = outfmt.endswith(".tif")
 		self.renderedcards = []
+
+	def setSize(self, cardw, cardh):
+		self.cardw = cardw
+		self.cardh = cardh
+		self.size = (int(cardw*self.scale), int(cardh*self.scale))
+		self.finalsize = self.size #(825, 1125)
+		self.imgheight = self.size[1]
 
 	def format(self, data):
 		return self.outfmt.format( data )

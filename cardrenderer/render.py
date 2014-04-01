@@ -56,6 +56,7 @@ class CardRenderer:
 		return Formatter().vformat(fmtstring, [], dd)
 
 	def render_card(self, template, card):
+		self.canvas.setSize(template.cardw, template.cardh)
 		self.canvas.beginCard(card)
 		template.render(self.canvas, card)
 		self.canvas.endCard()

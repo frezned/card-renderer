@@ -20,4 +20,6 @@ class Canvas(object):
 		pass
 
 	def finish():
+
+	def setSize(self, cardw, cardh):
 		pass
