@@ -36,7 +36,6 @@ class CardRenderer:
 		self.decks = {}
 		self.styles = {}
 		self.templates = []
-		self.keytemplates = {}
 		self.readfiles = set()
 		self.outputs = []
 		self.name = ""
@@ -85,7 +84,6 @@ class CardRenderer:
 	def template(self, **kwargs):
 		t = Template(kwargs, self)
 		self.templates.append(t)
-		self.keytemplates[t.key] = t
 		return t
 
 	def all_cards_progress(self, function, check=None):
@@ -203,7 +201,7 @@ class CardRenderer:
 				template.use(d['use-csv'], True)
 			template.sort()
 		for c in data.get('cards', []):
-			template = self.keytemplates[c['type']]
+			template = [x for x in self.templates if x.key == c['type']][0]
 			template.card(**c)
 			template.sort()
 
