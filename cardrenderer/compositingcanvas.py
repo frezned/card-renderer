@@ -39,8 +39,8 @@ class CompositingCanvas(Canvas):
 		# save for later
 		self.texts.append((text, style, x, y, width, height))
 	
-	def getfilename(self):
-		return self.pdf.getfilename()
+	def getFilename(self):
+		return self.pdf.getFilename()
 
 	def addStyle(self, data):
 		self.pdf.addStyle(data)

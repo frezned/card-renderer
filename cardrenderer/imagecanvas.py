@@ -34,13 +34,13 @@ class ImageCanvas(Canvas):
 	def format(self, data):
 		return self.outfmt.format( data )
 			
-	def getfilename(self):
+	def getFilename(self):
 		return self.outfmt
 
 	def drawImage(self, filename, x=0, y=0, width=None, height=None):
 		width = width or self.cardw
 		height = height or self.height
-		filename = self.res.getfilename(filename, self.dpi)
+		filename = self.res.getFilename(filename, self.dpi)
 		if os.path.exists(filename):
 			try:
 				source = Image.open(filename).resize((int(width*self.scale), int(height*self.scale)))

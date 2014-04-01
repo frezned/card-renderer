@@ -140,7 +140,7 @@ class CardRenderer:
 		self.guides = guides
 		self.background = background
 		self.resources.prepare(dpi, imageextension)
-		print "Rendering to {out}...".format(out=self.canvas.getfilename())
+		print "Rendering to {out}...".format(out=self.canvas.getFilename())
 		def cardfilter(c):
 			if filtertemplate:
 				filt = self.format(filtertemplate, c)

@@ -56,7 +56,7 @@ class PDFCanvas(Canvas):
 	def drawImage(self, filename, x=0, y=0, width=None, height=None):
 		width = width or self.cardw
 		height = height or self.cardh
-		filename = self.res.getfilename(filename, self.dpi)
+		filename = self.res.getFilename(filename, self.dpi)
 		if os.path.exists(filename):
 			try:
 				self.canvas.drawImage(filename, tomm(x), tomm(y), tomm(width), tomm(height))
@@ -143,7 +143,7 @@ class PDFCanvas(Canvas):
 	def endPage(self):
 		assert self.page
 		if self.note: 
-			self.drawnote()
+			self.drawNote()
 		if self.guides:
 			self.drawGuides()
 		self.x = 0
@@ -173,11 +173,11 @@ class PDFCanvas(Canvas):
 			canvas.setStrokeColorRGB(1, 1, 1)
 			canvas.line(left, y, right, y) 
 
-	def drawnote(self):
+	def drawNote(self):
 		if self.note:
 			self.renderText(self.note, 'note', self.offsetx, self.offsety + self.cardh + 1*mm, self.cardw, 100)
 
-	def getfilename(self):
+	def getFilename(self):
 		return self.outfile
 
 	def finish(self):

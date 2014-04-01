@@ -16,10 +16,11 @@ class Canvas(object):
 	def renderText(self, text, style=None, x=0, y=0, width=None, height=None):
 		pass
 
-	def getfilename(self):
+	def getFilename(self):
 		pass
 
-	def finish():
+	def finish(self):
+		pass
 
 	def setSize(self, cardw, cardh):
 		pass

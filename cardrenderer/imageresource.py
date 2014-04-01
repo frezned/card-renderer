@@ -70,7 +70,7 @@ class ImageResource:
 			else:
 				print "Doesn't exist: ", self.url
 
-	def getfilename(self, dpi):
+	def getFilename(self, dpi):
 		if dpi not in self.files:
 			return ""
 		else:
@@ -136,9 +136,9 @@ class Resources:
 				print e
 		print
 
-	def getfilename(self, url, dpi):
+	def getFilename(self, url, dpi):
 		if url:
-			return self.images[url].getfilename(dpi)
+			return self.images[url].getFilename(dpi)
 		else:
 			return ""
 
