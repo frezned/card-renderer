@@ -82,7 +82,7 @@ class CardRenderer:
 		return name
 
 	def template(self, **kwargs):
-		t = Template(kwargs, self)
+		t = Template(self, **kwargs)
 		self.templates.append(t)
 		return t
 
