@@ -2,32 +2,32 @@ import HTMLParser # for unescape
 
 class TemplateItem:
 
-	def __init__(self, builder, data):
-		self.builder = builder
+	def __init__(self, template, data):
+		self.template = template
 		self.name = data.get('name', "")
-		self.width = data.get('width', 0) or builder.cardw
-		self.height = data.get('height', 0) or builder.cardh
+		self.width = data.get('width', 0) or template.cardw
+		self.height = data.get('height', 0) or template.cardh
 		def coordormid(key, ref):
 			val = data.get(key, 0)
 			if val == "mid":
 				return ref
 			else:
 				return val
-		self.x = coordormid('x', 0.5*(builder.cardw-self.width))
-		self.y = coordormid('y', 0.5*(builder.cardh-self.height))
+		self.x = coordormid('x', 0.5*(template.cardw-self.width))
+		self.y = coordormid('y', 0.5*(template.cardh-self.height))
 		if data.get('hcenter', False):
-			self.x = (builder.cardw-self.width) / 2
+			self.x = (template.cardw-self.width) / 2
 	
 	def format(self, fmtstring, data):
-		return self.builder.format(fmtstring, data)
+		return self.template.builder.format(fmtstring, data)
 
 	def prepare(self, data):
 		pass
 
 class GraphicTemplateItem(TemplateItem):
 	
-	def __init__(self, builder, data):
-		TemplateItem.__init__(self, builder, data)
+	def __init__(self, template, data):
+		TemplateItem.__init__(self, template, data)
 		self.filename = data.get('filename', "")
 
 	def render(self, canvas, data):
@@ -39,8 +39,8 @@ class GraphicTemplateItem(TemplateItem):
 
 class TextTemplateItem(TemplateItem):
 
-	def __init__(self, builder, data):
-		TemplateItem.__init__(self, builder, data)
+	def __init__(self, template, data):
+		TemplateItem.__init__(self, template, data)
 		self.textformat = data.get('format', "{" + self.name + "}")
 		self.style = data.get('style', self.name)
 
@@ -51,8 +51,8 @@ class TextTemplateItem(TemplateItem):
 
 class FunctionTemplateItem(TemplateItem):
 
-	def __init__(self, builder, data):
-		TemplateItem.__init__(self, builder, data)
+	def __init__(self, template, data):
+		TemplateItem.__init__(self, template, data)
 		self.callback = data.get('callback', None)
 
 	def render(self, canvas, data):
@@ -61,10 +61,10 @@ class FunctionTemplateItem(TemplateItem):
 
 class Template:
 
-	def __init__(self, data, builder):
+	def __init__(self, builder, **data):
 		self.builder = builder
-		self.name = data.get('name', "")
-		self.key = data.get('key', self.name)
+		self.cardw = data.get('cardw', builder.cardw)
+		self.cardh = data.get('cardh', builder.cardh)
 		self.items = []
 		for e in data.get('elements', []):
 			if type(e) == str:
@@ -79,23 +79,23 @@ class Template:
 			for i in other.items:
 				self.items.append(i)
 		elif 'callback' in kwargs:
-			self.items.append(FunctionTemplateItem(self.builder, kwargs))
+			self.items.append(FunctionTemplateItem(self, kwargs))
 		elif 'filename' in kwargs:
-			self.items.append(GraphicTemplateItem(self.builder, kwargs))
+			self.items.append(GraphicTemplateItem(self, kwargs))
 		else:
-			self.items.append(TextTemplateItem(self.builder, kwargs))
+			self.items.append(TextTemplateItem(self, kwargs))
 
 	def text(self, format, **kwargs):
 		kwargs['format'] = format
-		self.items.append(TextTemplateItem(self.builder, kwargs))
+		self.items.append(TextTemplateItem(self, kwargs))
 
 	def image(self, filename, **kwargs):
 		kwargs['filename'] = filename
-		self.items.append(GraphicTemplateItem(self.builder, kwargs))
+		self.items.append(GraphicTemplateItem(self, kwargs))
 
 	def function(self, callback, **kwargs):
 		kwargs['callback'] = callback
-		self.items.append(FunctionTemplateItem(self.builder, kwargs))
+		self.items.append(FunctionTemplateItem(self, kwargs))
 
 	def render(self, canvas, data):
 		for i in self.items:
