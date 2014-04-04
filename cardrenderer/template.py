@@ -1,4 +1,5 @@
 import HTMLParser # for unescape
+import error
 
 class TemplateItem:
 
@@ -73,6 +74,7 @@ class Template:
 				self.element(**e)
 		self.cards = []
 
+	@error.deprecated("Template.text", "Template.image", "Template.function")
 	def element(self, *args, **kwargs):
 		if len(args) == 1 and type(args[0]) == str and len(kwargs)==0:
 			other = self.builder.templates[args[0]]
