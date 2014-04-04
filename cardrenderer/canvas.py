@@ -10,7 +10,7 @@ class Canvas(object):
 	def addStyle(self, data):
 		pass
 
-	def drawImage(self, filename, x=0, y=0, width=None, height=None):
+	def drawImage(self, filename, x=0, y=0, width=None, height=None, mask=None):
 		pass
 
 	def renderText(self, text, style=None, x=0, y=0, width=None, height=None):

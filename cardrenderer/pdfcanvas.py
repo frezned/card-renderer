@@ -9,6 +9,7 @@ from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
 from reportlab.lib.units import mm
 
 from canvas import Canvas
+import error
 
 def tomm(num):
 	if type(num) in (float, int):
@@ -53,7 +54,8 @@ class PDFCanvas(Canvas):
 			if self.page:
 				self.endPage()
 
-	def drawImage(self, filename, x=0, y=0, width=None, height=None):
+	@error.unsupportedParameter("mask")
+	def drawImage(self, filename, x=0, y=0, width=None, height=None, mask=None):
 		width = width or self.cardw
 		height = height or self.cardh
 		filename = self.res.getFilename(filename, self.dpi)

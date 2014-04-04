@@ -37,22 +37,34 @@ class ImageCanvas(Canvas):
 	def getFilename(self):
 		return self.outfmt
 
-	def drawImage(self, filename, x=0, y=0, width=None, height=None):
+	def drawImage(self, filename, x=0, y=0, width=None, height=None, mask=None):
 		width = width or self.cardw
-		height = height or self.height
-		filename = self.res.getFilename(filename, self.dpi)
-		if os.path.exists(filename):
-			try:
-				source = Image.open(filename).resize((int(width*self.scale), int(height*self.scale)))
-				y = self.imgheight-(height*self.scale)-(y*self.scale)
-				pos = (int(x*self.scale), int(y))
+		height = height or self.cardh
+		y = self.imgheight-(height*self.scale)-(y*self.scale)
+		size = (int(width*self.scale), int(height*self.scale))
+		pos = (int(x*self.scale), int(y))
+		if mask:
+			maskfile = self.res.getFilename(mask, self.dpi)
+			if os.path.exists(maskfile):
+				mask = Image.open(maskfile).resize(size).convert("L")
+			else:
+				mask = None
+		if type(filename) is tuple:
+			if mask:
+				dim = pos + (pos[0] + size[0], pos[1] + size[1])
+				self.image.paste(filename, dim, mask=mask)
+		else:
+			filename = self.res.getFilename(filename, self.dpi)
+			if os.path.exists(filename):
 				try:
-					self.image.paste(source, pos, source)
-				except ValueError:
-					self.image.paste(source, pos)
-			except IOError, e:
-				print
-				print e.message, filename
+					source = Image.open(filename).resize(size)
+					try:
+						self.image.paste(source, pos, mask or source)
+					except ValueError:
+						self.image.paste(source, pos, mask or None)
+				except IOError, e:
+					print
+					print e.message, filename
 
 	def addStyle(self, data):
 		s = {}
@@ -71,7 +83,7 @@ class ImageCanvas(Canvas):
 
 	def renderText(self, text, style=None, x=0, y=0, width=None, height=None):
 		width = width or self.cardw
-		height = height or self.height
+		height = height or self.cardh
 		lines = text.splitlines()
 		i = 0
 		styledata = self.styles[style]
