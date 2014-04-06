@@ -19,7 +19,7 @@ def tomm(num):
 
 class PDFCanvas(Canvas):
 
-	def __init__(self, res, cardw, cardh, outfile, pagesize, margin=(0,0), background=False, note=None, guides=True, dpi=300, compat=False, **kwargs):
+	def __init__(self, res, cardw, cardh, outfile, pagesize, margin=(0,0), background=False, note=None, guides=(128, 128, 128), separators=(255, 255, 255), dpi=300, compat=False, **kwargs):
 		self.outfile = outfile
 		self.drawbackground = background
 		self.pagesize = tomm(pagesize)
@@ -31,7 +31,10 @@ class PDFCanvas(Canvas):
 		self.canvas = canvas.Canvas(self.tempfile, pagesize=self.pagesize)
 		self.styles = {}
 		self.note = note
-		self.guides = guides
+		if guides == True:
+			guides = (255, 255, 255)
+		self.guides = guides and tuple([x * (1/255.0) for x in guides])
+		self.separators = separators and tuple([x * (1/255.0) for x in separators])
 		if note:
 			self.addStyle(dict(name='note', size=8, align='center'))
 		self.dpi = dpi
@@ -158,7 +161,6 @@ class PDFCanvas(Canvas):
 		self.page = False
 
 	def drawGuides(self):
-		GUIDECOLOR = (0.5, 0.5, 0.5)
 		canvas = self.canvas
 		left = self.offsetx
 		right = left + self.cardw*self.columns
@@ -166,17 +168,17 @@ class PDFCanvas(Canvas):
 		bottom = top - self.cardh*self.rows
 		for ix in range(0, self.columns+1):
 			x = self.offsetx + self.cardw*ix
-			canvas.setStrokeColorRGB(*GUIDECOLOR)
+			canvas.setStrokeColorRGB(*self.guides)
 			canvas.line(x, self.pagesize[1], x, top)
 			canvas.line(x, bottom, x, 0)
-			canvas.setStrokeColorRGB(1, 1, 1)
+			canvas.setStrokeColorRGB(*self.separators)
 			canvas.line(x, top, x, bottom)
 		for iy in range(-1, self.rows):
 			y = self.offsety - self.cardh*iy
-			canvas.setStrokeColorRGB(*GUIDECOLOR)
+			canvas.setStrokeColorRGB(*self.guides)
 			canvas.line(0, y, left, y)
 			canvas.line(right, y, self.pagesize[0], y)
-			canvas.setStrokeColorRGB(1, 1, 1)
+			canvas.setStrokeColorRGB(*self.separators)
 			canvas.line(left, y, right, y) 
 
 	def drawNote(self):

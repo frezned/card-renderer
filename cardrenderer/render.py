@@ -118,20 +118,23 @@ class CardRenderer:
 	def render(self, pagesize, outfile, note='', guides=True, background=False, dpi=300, margin=0, filter=None, filtertemplate=None, imageextension=None, composite=False, **kwargs):
 		if outfile.endswith(".pdf"):
 			filename = self.format(outfile).replace(" ", "")
+			if not (type(margin) is list or type(margin) is tuple):
+				margin = (margin, margin)
 			args = dict(
 					res=self.resources,
 					cardw=self.cardw, cardh=self.cardh, 
-					outfile=filename, pagesize=pagesize, margin=(margin, margin),
+					outfile=filename,
+					pagesize=pagesize, margin=margin,
 					background=background, 
 					notefmt=self.format(note),
-					guides=guides,
 					dpi=dpi,
 					compat=kwargs.get("compat", False)
 					)
+			kwargs.update(args)
 			if composite:
-				self.canvas = CompositingCanvas(**args)
+				self.canvas = CompositingCanvas(**kwargs)
 			else:
-				self.canvas = PDFCanvas(**args)
+				self.canvas = PDFCanvas(**kwargs)
 		else:
 			self.canvas = ImageCanvas(self.resources, self.cardw, self.cardh, outfile, self.format)
 		for s in self.styles:
