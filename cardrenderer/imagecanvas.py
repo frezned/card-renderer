@@ -5,6 +5,25 @@ from canvas import Canvas
 
 inch = 25.4
 
+# from http://web.archive.org/web/20130306020911/http://nadiana.com/pil-tutorial-basic-advanced-drawing#Drawing_Rounded_Corners_Rectangle
+def round_corner(radius, fill):
+    """Draw a round corner"""
+    corner = Image.new('RGBA', (radius, radius), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(corner)
+    draw.pieslice((0, 0, radius * 2, radius * 2), 180, 270, fill=fill)
+    return corner
+ 
+def round_rectangle(size, radius, fill):
+    """Draw a rounded rectangle"""
+    width, height = size
+    rectangle = Image.new('RGBA', size, fill)
+    corner = round_corner(radius, fill)
+    rectangle.paste(corner, (0, 0))
+    rectangle.paste(corner.rotate(90), (0, height - radius)) # Rotate the corner and paste it
+    rectangle.paste(corner.rotate(180), (width - radius, height - radius))
+    rectangle.paste(corner.rotate(270), (width - radius, 0))
+    return rectangle
+
 def mkdir(n):
 	if not os.path.exists(n): os.mkdir(n)
 
@@ -37,6 +56,24 @@ class ImageCanvas(Canvas):
 	def getFilename(self):
 		return self.outfmt
 
+	def drawRect(self, fill=(0, 0, 0, 0), radius=0, x=0, y=0, width=0, height=0, mask=None):
+		width = width or self.cardw
+		height = height or self.cardh
+		y = self.imgheight-(height*self.scale)-(y*self.scale)
+		size = (int(width*self.scale), int(height*self.scale))
+		pos = (int(x*self.scale), int(y))
+		if mask:
+			maskfile = self.res.getFilename(mask, self.dpi)
+			if os.path.exists(maskfile):
+				mask = Image.open(maskfile).resize(size).convert("L")
+			else:
+				return
+		if radius:
+			rect = round_rectangle(size, int(radius*self.scale), fill)
+		else:
+			dim = pos + (pos[0] + size[0], pos[1] + size[1])
+			self.image.paste(fill, dim, mask=mask)
+
 	def drawImage(self, filename, x=0, y=0, width=None, height=None, mask=None):
 		width = width or self.cardw
 		height = height or self.cardh
@@ -49,22 +86,17 @@ class ImageCanvas(Canvas):
 				mask = Image.open(maskfile).resize(size).convert("L")
 			else:
 				mask = None
-		if type(filename) is tuple:
-			if mask:
-				dim = pos + (pos[0] + size[0], pos[1] + size[1])
-				self.image.paste(filename, dim, mask=mask)
-		else:
-			filename = self.res.getFilename(filename, self.dpi)
-			if os.path.exists(filename):
+		filename = self.res.getFilename(filename, self.dpi)
+		if os.path.exists(filename):
+			try:
+				source = Image.open(filename).resize(size)
 				try:
-					source = Image.open(filename).resize(size)
-					try:
-						self.image.paste(source, pos, mask or source)
-					except ValueError:
-						self.image.paste(source, pos, mask or None)
-				except IOError, e:
-					print
-					print e.message, filename
+					self.image.paste(source, pos, mask or source)
+				except ValueError:
+					self.image.paste(source, pos, mask or None)
+			except IOError, e:
+				print
+				print e.message, filename
 
 	def addStyle(self, data):
 		s = {}

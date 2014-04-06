@@ -32,6 +32,9 @@ class CompositingCanvas(Canvas):
 			self.pdf.renderText(*t)
 		self.pdf.endCard()
 
+	def drawRect(self, fill=(0, 0, 0, 0), radius=0, x=0, y=0, width=0, height=0, mask=None):
+		self.image.drawRect(fill, radius, x, y, width, height, mask)
+
 	def drawImage(self, filename, x=0, y=0, width=None, height=None, mask=None):
 		self.image.drawImage(filename, x, y, width, height, mask)
 

@@ -27,11 +27,17 @@ def deprecated(*args):
 	return decorator
 
 def unsupportedParameter(*args):
-	def decorator(f):
+	def decorator(func):
 		def inner(*inargs, **kwargs):
 			for p in args:
 				if p in kwargs and kwargs[p]:
-					warn("Argument {} is not supported in {}".format(p, name(f)))
-			return f(*inargs, **kwargs)
+					warn("Argument {} is not supported in {}".format(p, name(func)))
+			return func(*inargs, **kwargs)
 		return inner
 	return decorator
+
+def unsupportedFunction(func):
+	def inner(*args, **kwargs):
+		warn("Function {} is not supported.".format(name(func)))
+		return func(*args, **kwargs)
+	return inner

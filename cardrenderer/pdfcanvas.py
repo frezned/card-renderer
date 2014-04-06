@@ -54,6 +54,10 @@ class PDFCanvas(Canvas):
 			if self.page:
 				self.endPage()
 
+	@error.unsupportedFunction
+	def drawRect(self, *args, **kwargs):
+		pass 
+
 	@error.unsupportedParameter("mask")
 	def drawImage(self, filename, x=0, y=0, width=None, height=None, mask=None):
 		width = width or self.cardw
