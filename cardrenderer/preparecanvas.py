@@ -7,7 +7,7 @@ class PrepareCanvas(Canvas):
 		self.images = []
 		self.res = res or Resources("res")
 
-	def drawRect(self, fill=(0, 0, 0, 0), radius=0, x=0, y=0, width=0, height=0, mask=None):
+	def drawRect(self, x=0, y=0, width=0, height=0, mask=None, *args, **kwargs):
 		if mask:
 			self.res.markneeded(mask, width, height)
 

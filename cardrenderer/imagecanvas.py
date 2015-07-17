@@ -65,7 +65,7 @@ class ImageCanvas(Canvas):
 		if mask:
 			maskfile = self.res.getFilename(mask, self.dpi)
 			if os.path.exists(maskfile):
-				mask = Image.open(maskfile).resize(size).convert("L")
+				mask = Image.open(maskfile).resize(size, Image.ANTIALIAS).convert("L")
 			else:
 				return
 		if radius:
@@ -83,13 +83,13 @@ class ImageCanvas(Canvas):
 		if mask:
 			maskfile = self.res.getFilename(mask, self.dpi)
 			if os.path.exists(maskfile):
-				mask = Image.open(maskfile).resize(size).convert("L")
+				mask = Image.open(maskfile).resize(size, Image.ANTIALIAS).convert("L")
 			else:
 				mask = None
 		filename = self.res.getFilename(filename, self.dpi)
 		if os.path.exists(filename):
 			try:
-				source = Image.open(filename).resize(size)
+				source = Image.open(filename).resize(size, Image.ANTIALIAS)
 				try:
 					self.image.paste(source, pos, mask or source)
 				except ValueError:

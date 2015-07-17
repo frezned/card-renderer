@@ -1,5 +1,6 @@
 import HTMLParser # for unescape
 import error
+from markeddict import MarkedDict
 
 class TemplateItem:
 
@@ -108,7 +109,7 @@ class Template:
 			i.prepare(data)
 
 	def card(self, **card):
-		self.cards.append(card)
+		self.cards.append(MarkedDict(card))
 
 	def use(self, urls, csv=False):
 		if type(urls) == str:
